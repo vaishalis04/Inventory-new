@@ -11,8 +11,8 @@ const item = Joi.object({
   brand: text(100),
   description: Joi.string().allow('', null),
   unit: Joi.string().max(20).default('pcs'),
-  purchase_price: Joi.number().min(0),
-  sale_price: Joi.number().min(0),
+  // purchase_price: Joi.number().min(0),
+  // sale_price: Joi.number().min(0),
   min_stock: Joi.number().integer().min(0),
   custom_fields: Joi.object().unknown(true).allow(null),
 });
