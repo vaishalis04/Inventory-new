@@ -57,23 +57,84 @@ exports.scan = asyncHandler(async (req, res) => {
 });
 
 // Scan -> take out / add. Returns the refreshed view so the UI shows the new qty immediately.
+
 exports.adjust = asyncHandler(async (req, res) => {
   const found = await resolve(req.params.code, req.user.company_id);
   const b = req.body;
-  const base = { companyId: req.user.company_id, userId: req.user.id, action: b.action, quantity: b.quantity, note: b.note };
+
+  const quantity = Number(b.quantity);
+
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new ApiError(400, 'Quantity must be a positive integer');
+  }
+
+  const performedBy = String(b.performed_by || '').trim();
+
+  if (!performedBy) {
+    throw new ApiError(400, 'Please enter the name of the person performing this adjustment');
+  }
+
+  const base = {
+    companyId: req.user.company_id,
+    userId: req.user.id,
+    action: b.action,
+    quantity,
+    note: b.note || null,
+    performedBy,
+  };
 
   if (found.kind === 'BOX') {
-    await inv.adjustBox({ ...base, code: found.row.code });
-    const fresh = await db.Box.findByPk(found.row.id);
-    return res.json({ success: true, data: await boxView(fresh, req.user.company_id) });
+    await inv.adjustBox({
+      ...base,
+      code: found.row.code,
+    });
+
+    const fresh = await db.Box.findOne({
+      where: {
+        id: found.row.id,
+        company_id: req.user.company_id,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Box units adjusted successfully',
+      data: await boxView(fresh, req.user.company_id),
+    });
   }
 
   let warehouseId = b.warehouse_id;
+
   if (!warehouseId) {
-    const stocks = await db.Stock.findAll({ where: { item_id: found.row.id, company_id: req.user.company_id } });
-    if (stocks.length === 1) warehouseId = stocks[0].warehouse_id;
-    else throw new ApiError(422, 'warehouse_id is required for material QR scans (item is in several warehouses)');
+    const stocks = await db.Stock.findAll({
+      where: {
+        item_id: found.row.id,
+        company_id: req.user.company_id,
+      },
+    });
+
+    if (stocks.length === 1) {
+      warehouseId = stocks[0].warehouse_id;
+    } else {
+      throw new ApiError(
+        422,
+        'warehouse_id is required when the material exists in multiple warehouses'
+      );
+    }
   }
-  await inv.adjustItem({ ...base, item: found.row, warehouseId, boxCode: b.box_code ? qr.parseCode(b.box_code) : null, autoBox: b.auto_box });
-  res.json({ success: true, data: await itemView(found.row, req.user.company_id) });
+
+  await inv.adjustItem({
+    ...base,
+    item: found.row,
+    warehouseId,
+    boxCode: b.box_code ? qr.parseCode(b.box_code) : null,
+    autoBox: b.auto_box,
+  });
+
+  return res.json({
+    success: true,
+    message: 'Material units adjusted successfully',
+    data: await itemView(found.row, req.user.company_id),
+  });
 });
+
