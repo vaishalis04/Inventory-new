@@ -1,21 +1,48 @@
+
 import { HIDDEN_KEY, formatValue, isScalar, pretty } from "../utils/format";
 import { showField, useLookups } from "../utils/lookup";
 
-/** columns: [{ key, label, render?(row) }]. Empty state included. */
-export function DataTable({ columns, rows, empty = "No records found.", rowKey }) {
+const fmt = formatValue;
+
+/** Columns: [{ key, label, render?(row) }]. */
+export function DataTable({
+  columns,
+  rows,
+  empty = "No records found.",
+  rowKey,
+}) {
   useLookups();
-  if (!rows?.length) return <p className="muted">{empty}</p>;
+
+  if (!rows?.length) {
+    return (
+      <div className="dark-empty-state">
+        <span className="empty-state-icon">▤</span>
+        <strong>Nothing to display</strong>
+        <p>{empty}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="table-wrap">
-      <table>
+    <div className="table-wrap dark-table-wrap">
+      <table className="dark-table">
         <thead>
-          <tr>{columns.map((c) => <th key={c.key}>{c.label}</th>)}</tr>
+          <tr>
+            {columns.map((column) => (
+              <th key={column.key}>{column.label}</th>
+            ))}
+          </tr>
         </thead>
+
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={rowKey ? rowKey(row) : row.id ?? i}>
-              {columns.map((c) => (
-                <td key={c.key}>{c.render ? c.render(row) : fmt(row[c.key], c.key)}</td>
+          {rows.map((row, index) => (
+            <tr key={rowKey ? rowKey(row) : row.id ?? index}>
+              {columns.map((column) => (
+                <td key={column.key}>
+                  {column.render
+                    ? column.render(row)
+                    : fmt(row[column.key], column.key)}
+                </td>
               ))}
             </tr>
           ))}
@@ -25,35 +52,76 @@ export function DataTable({ columns, rows, empty = "No records found.", rowKey }
   );
 }
 
-const fmt = formatValue;
-
 /**
- * Builds columns automatically from the first rows' scalar fields (and one level of
- * nested object name fields), because the API's exact response shape isn't documented.
+ * Automatically builds columns from scalar fields and nested name/code fields.
+ * Hidden fields and unresolved IDs are omitted.
  */
 export function AutoTable({ rows, actions, hide = [], ...rest }) {
   useLookups();
+
   const sample = rows?.slice(0, 20) ?? [];
   const keys = [];
-  sample.forEach((r) =>
-    Object.entries(r).forEach(([k, v]) => {
-      if (hide.includes(k) || HIDDEN_KEY.test(k) || keys.includes(k)) return;
-      if (isScalar(v) || (v && typeof v === "object" && !Array.isArray(v) && ("name" in v || "code" in v))) keys.push(k);
-    })
+
+  sample.forEach((row) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) return;
+
+    Object.entries(row).forEach(([key, value]) => {
+      if (
+        hide.includes(key) ||
+        HIDDEN_KEY.test(key) ||
+        keys.includes(key)
+      ) {
+        return;
+      }
+
+      if (
+        isScalar(value) ||
+        (value &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          ("name" in value || "code" in value))
+      ) {
+        keys.push(key);
+      }
+    });
+  });
+
+  const visible = keys.filter((key) =>
+    sample.some(
+      (row) =>
+        row[key] !== undefined && showField(key, row[key], row)
+    )
   );
-  // Drop raw ids (and *_id columns that can't be resolved to a name) unless at least one row resolves.
-  const visible = keys.filter((k) => sample.some((r) => r[k] !== undefined && showField(k, r[k], r)));
-  const columns = visible.map((k) => ({
-    key: k,
-    label: pretty(k),
+
+  const columns = visible.map((key) => ({
+    key,
+    label: pretty(key),
     render: (row) => {
-      const v = row[k];
-      if (v && typeof v === "object") return v.name ?? v.code ?? JSON.stringify(v);
-      return fmt(v, k);
+      const value = row[key];
+
+      if (value && typeof value === "object") {
+        return value.name ?? value.code ?? JSON.stringify(value);
+      }
+
+      return fmt(value, key);
     },
   }));
-  if (actions) columns.push({ key: "_actions", label: "", render: actions });
-  return <DataTable columns={columns} rows={rows} {...rest} />;
+
+  if (actions) {
+    columns.push({
+      key: "_actions",
+      label: "Actions",
+      render: actions,
+    });
+  }
+
+  return (
+    <DataTable
+      columns={columns}
+      rows={rows}
+      {...rest}
+    />
+  );
 }
 
 export default DataTable;

@@ -1,52 +1,101 @@
+
 import { AutoTable } from "./DataTable";
-import { HIDDEN_KEY, formatValue, isScalar, pretty } from "../utils/format";
+import {
+  HIDDEN_KEY,
+  formatValue,
+  isScalar,
+  pretty,
+} from "../utils/format";
 import { showField, useLookups } from "../utils/lookup";
 
-/**
- * Renders any API response readably:
- *  - plain fields   -> label / value grid
- *  - arrays of rows -> table
- *  - nested objects -> titled sub-sections
- */
 export default function DataView({ data, skip = [] }) {
   useLookups();
-  if (data === null || data === undefined) return <p className="muted">No data.</p>;
-  if (isScalar(data)) return <span>{formatValue(data)}</span>;
-  if (Array.isArray(data)) return <ArrayView rows={data} />;
+
+  if (data === null || data === undefined) {
+    return <p className="muted">No data available.</p>;
+  }
+
+  if (isScalar(data)) {
+    return <span className="dark-inline-value">{formatValue(data)}</span>;
+  }
+
+  if (Array.isArray(data)) {
+    return <ArrayView rows={data} />;
+  }
 
   const entries = Object.entries(data).filter(
-    ([k, v]) => !skip.includes(k) && !HIDDEN_KEY.test(k) && !(typeof v === "string" && v.length > 200)
+    ([key, value]) =>
+      !skip.includes(key) &&
+      !HIDDEN_KEY.test(key) &&
+      !(typeof value === "string" && value.length > 200)
   );
-  const scalars = entries.filter(([k, v]) => isScalar(v) && showField(k, v, data));
-  const nested = entries.filter(([, v]) => !isScalar(v));
+
+  const scalars = entries.filter(
+    ([key, value]) => isScalar(value) && showField(key, value, data)
+  );
+
+  const nested = entries.filter(([, value]) => !isScalar(value));
+
+  if (!entries.length) {
+    return <p className="muted">No displayable fields.</p>;
+  }
 
   return (
-    <>
+    <div className="dark-data-view">
       {scalars.length > 0 && (
-        <dl className="kv">
-          {scalars.map(([k, v]) => (
-            <div key={k}>
-              <dt>{pretty(k)}</dt>
-              <dd>{formatValue(v, k)}</dd>
+        <dl className="kv dark-kv">
+          {scalars.map(([key, value]) => (
+            <div key={key}>
+              <dt>{pretty(key)}</dt>
+              <dd>{formatValue(value, key)}</dd>
             </div>
           ))}
         </dl>
       )}
-      {nested.map(([k, v]) => (
-        <section key={k} className="sub">
-          <h3>{pretty(k)}</h3>
-          <DataView data={v} />
+
+      {nested.map(([key, value]) => (
+        <section key={key} className="sub dark-sub">
+          <h3>{pretty(key)}</h3>
+          <DataView data={value} />
         </section>
       ))}
-    </>
+    </div>
   );
 }
 
 function ArrayView({ rows }) {
-  if (!rows.length) return <p className="muted">None.</p>;
-  if (rows.every(isScalar)) {
-    return <div className="chips">{rows.map((r, i) => <span className="badge" key={i}>{String(r)}</span>)}</div>;
+  if (!rows.length) {
+    return <p className="muted">No records available.</p>;
   }
-  if (rows.every((r) => r && typeof r === "object" && !Array.isArray(r))) return <AutoTable rows={rows} />;
-  return rows.map((r, i) => <DataView key={i} data={r} />);
+
+  if (rows.every(isScalar)) {
+    return (
+      <div className="chips dark-chips">
+        {rows.map((value, index) => (
+          <span className="badge dark-badge" key={index}>
+            {String(value)}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  if (
+    rows.every(
+      (row) =>
+        row && typeof row === "object" && !Array.isArray(row)
+    )
+  ) {
+    return <AutoTable rows={rows} />;
+  }
+
+  return (
+    <div className="dark-array-list">
+      {rows.map((row, index) => (
+        <div className="dark-array-item" key={index}>
+          <DataView data={row} />
+        </div>
+      ))}
+    </div>
+  );
 }

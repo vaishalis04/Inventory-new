@@ -1,25 +1,52 @@
-/** Label + input/select/textarea. Pass `options` for a select: [{value,label}] */
-export default function FormField({ label, type = "text", options, hint, children, ...props }) {
+
+export default function FormField({
+  label,
+  type = "text",
+  options,
+  hint,
+  children,
+  ...props
+}) {
+  const isCheckbox = type === "checkbox";
+
   return (
-    <label className="field">
-      <span>{label}</span>
-      {options ? (
-        <select {...props}>
-          <option value="">— select —</option>
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      ) : type === "textarea" ? (
-        <textarea rows={3} {...props} />
-      ) : type === "checkbox" ? (
-        <input type="checkbox" {...props} />
+    <label className={`field dark-field${isCheckbox ? " checkbox-field" : ""}`}>
+      {isCheckbox ? (
+        <span className="checkbox-control">
+          <input type="checkbox" {...props} />
+          <span className="checkbox-custom" aria-hidden="true" />
+          <span className="field-label">{label}</span>
+        </span>
       ) : (
-        <input type={type} {...props} />
+        <>
+          <span className="field-label">{label}</span>
+
+          {options ? (
+            <select className="dark-input" {...props}>
+              <option value="">— Select an option —</option>
+              {options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          ) : type === "textarea" ? (
+            <textarea
+              className="dark-input"
+              rows={3}
+              {...props}
+            />
+          ) : (
+            <input
+              className="dark-input"
+              type={type}
+              {...props}
+            />
+          )}
+        </>
       )}
-      {hint && <small className="muted">{hint}</small>}
+
+      {hint && <small className="field-hint">{hint}</small>}
       {children}
     </label>
   );

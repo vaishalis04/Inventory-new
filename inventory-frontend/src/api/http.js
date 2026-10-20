@@ -1,7 +1,7 @@
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5900/api";
+  "https://inventory-backend.kiwiconnectdigital.com/api";
 
 const TOKEN_KEY = "inventory_token";
 

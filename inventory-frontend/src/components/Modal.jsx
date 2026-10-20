@@ -1,12 +1,35 @@
+
 export default function Modal({ title, onClose, children }) {
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <h2>{title}</h2>
-          <button className="link" onClick={onClose} aria-label="Close">✕</button>
+    <div
+      className="modal-backdrop dark-modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="modal dark-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="modal-head dark-modal-head">
+          <div>
+            <span className="modal-eyebrow">WORKSPACE</span>
+            <h2>{title}</h2>
+          </div>
+
+          <button
+            className="modal-close"
+            type="button"
+            onClick={onClose}
+            aria-label="Close dialog"
+          >
+            ×
+          </button>
         </div>
-        {children}
+
+        <div className="dark-modal-body">{children}</div>
       </div>
     </div>
   );
