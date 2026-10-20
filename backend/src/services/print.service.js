@@ -24,7 +24,7 @@ function zplLabel({ code, lines, copies, printer }) {
   return zpl;
 }
 
-function buildZpl({ box, item, includeBoxLabel, itemLabelCount, printer }) {
+function buildZpl({ box, item, includeBoxLabel, itemLabelCount, printer, units = [] }) {
   let out = '';
   if (includeBoxLabel && box) {
     out += zplLabel({
@@ -32,11 +32,8 @@ function buildZpl({ box, item, includeBoxLabel, itemLabelCount, printer }) {
       lines: ['BOX ' + box.code, item.name, item.model || item.sku, `Qty: ${box.initial_quantity} ${item.unit || ''}`],
     });
   }
-  if (itemLabelCount > 0) {
-    out += zplLabel({
-      code: item.qr_code, copies: itemLabelCount, printer,
-      lines: [item.name, item.model || '', item.brand || '', item.sku],
-    });
+  for (const unit of units.slice(0, itemLabelCount)) {
+    out += zplLabel({ code: unit.code, copies: 1, printer, lines: [item.name, item.model || '', item.brand || '', unit.code] });
   }
   return out;
 }
@@ -60,7 +57,9 @@ async function resolvePrinter(companyId, printerId, warehouseId) {
 
 /* ------------------------------- print job ------------------------------- */
 // itemLabelCount = how many material labels (e.g. 50). Box label is always 1.
-exports.createJob = async ({ user, printerId, warehouseId, box, item, itemLabelCount = 0, includeBoxLabel = true }) => {
+exports.createJob = async ({ user, printerId, warehouseId, box, item, itemLabelCount = 0, includeBoxLabel = true, units = null }) => {
+  if (!units && itemLabelCount > 0) units = await db.InventoryUnit.findAll({ where: { company_id: user.company_id, item_id: item.id, ...(box ? { box_id: box.id } : { box_id: null }), warehouse_id: warehouseId, status: 'AVAILABLE' }, limit: itemLabelCount, order: [['id','ASC']] });
+  units = units || [];
   const printer = await resolvePrinter(user.company_id, printerId, warehouseId);
   const include = Boolean(box) && includeBoxLabel;
   const total = (include ? 1 : 0) + itemLabelCount;
@@ -74,7 +73,7 @@ exports.createJob = async ({ user, printerId, warehouseId, box, item, itemLabelC
   if (printer && printer.connection === 'NETWORK' && printer.host && total > 0) {
     try {
       await sendRaw(printer.host, printer.port || 9100,
-        buildZpl({ box, item, includeBoxLabel: include, itemLabelCount, printer }));
+        buildZpl({ box, item, includeBoxLabel: include, itemLabelCount, printer, units }));
       job.status = 'PRINTED';
     } catch (e) {
       job.status = 'FAILED';
@@ -102,9 +101,8 @@ exports.buildSheet = async (job) => {
     html += cell(await qr.toDataUrl(box.code), ['BOX ' + box.code, item.name, item.model || item.sku, `Qty: ${box.initial_quantity} ${item.unit || ''}`]);
   }
   if (job.item_label_count > 0) {
-    const img = await qr.toDataUrl(item.qr_code);
-    const one = cell(img, [item.name, item.model, item.brand, item.sku]);
-    html += one.repeat(job.item_label_count);
+    const units = await db.InventoryUnit.findAll({ where: { company_id: job.company_id, item_id: item.id, ...(box ? { box_id: box.id } : { box_id: null }), status: 'AVAILABLE' }, limit: job.item_label_count, order: [['id','ASC']] });
+    for (const unit of units) html += cell(await qr.toDataUrl(unit.code), [item.name, item.model, item.brand, unit.code]);
   }
   return `<!doctype html><html><head><meta charset="utf-8"><title>Labels</title><style>
 @page{size:${p.label_width_mm}mm ${p.label_height_mm}mm;margin:0}

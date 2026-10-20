@@ -41,6 +41,11 @@ async function resolve(rawCode, companyId) {
     if (!box) throw new ApiError(404, 'Box not found');
     return { kind: 'BOX', row: box };
   }
+  if (code.startsWith('UNT-')) {
+    const unit = await db.InventoryUnit.findOne({ where: { code, company_id: companyId }, include: [{ model: db.Item }, { model: db.Box }, { model: db.Warehouse }] });
+    if (!unit) throw new ApiError(404, 'Individual inventory item not found');
+    return { kind: 'UNIT', row: unit };
+  }
   if (code.startsWith('ITM-')) {
     const item = await db.Item.findOne({ where: { qr_code: code, company_id: companyId }, include: itemInclude });
     if (!item) throw new ApiError(404, 'Material not found');
@@ -52,7 +57,13 @@ async function resolve(rawCode, companyId) {
 // Scan -> full details. Works for both box QR and material QR.
 exports.scan = asyncHandler(async (req, res) => {
   const found = await resolve(req.params.code, req.user.company_id);
-  const data = found.kind === 'BOX' ? await boxView(found.row, req.user.company_id) : await itemView(found.row, req.user.company_id);
+  let data;
+  if (found.kind === 'BOX') {
+    data = await boxView(found.row, req.user.company_id);
+    data.units = await db.InventoryUnit.findAll({ where: { box_id: found.row.id, company_id: req.user.company_id }, attributes: ['id','code','status','received_at'], order: [['id','ASC']] });
+  } else if (found.kind === 'UNIT') {
+    data = { type: 'UNIT', unit: found.row, item: found.row.Item, box: found.row.Box, warehouse: found.row.Warehouse };
+  } else data = await itemView(found.row, req.user.company_id);
   res.json({ success: true, data });
 });
 
@@ -72,6 +83,34 @@ exports.adjust = asyncHandler(async (req, res) => {
 
   if (!performedBy) {
     throw new ApiError(400, 'Please enter the name of the person performing this adjustment');
+  }
+
+  if (found.kind === 'UNIT') {
+    if (quantity !== 1) throw new ApiError(400, 'An individual QR represents exactly one physical item; quantity must be 1');
+    const unit = await db.InventoryUnit.findOne({ where: { id: found.row.id, company_id: req.user.company_id } });
+    if (b.action === 'OUT') {
+      if (unit.status !== 'AVAILABLE') throw new ApiError(409, `This unit is ${unit.status.toLowerCase()}`);
+      await db.sequelize.transaction(async (t) => {
+        const stock = await db.Stock.findOne({ where: { company_id: req.user.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id }, transaction: t, lock: t.LOCK.UPDATE });
+        if (!stock || Number(stock.quantity) < 1) throw new ApiError(409, 'No stock available for this unit');
+        stock.quantity = Number(stock.quantity) - 1; await stock.save({ transaction: t });
+        await db.StockMovement.create({ company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id, box_id: unit.box_id, type: 'OUT', source: 'SCAN', change: -1, quantity: 1, balance_after: stock.quantity, reference: unit.code, note: b.note || null, user_id: req.user.id }, { transaction: t });
+        unit.status = 'ISSUED'; await unit.save({ transaction: t });
+        if (unit.box_id) { const box = await db.Box.findByPk(unit.box_id, { transaction: t, lock: t.LOCK.UPDATE }); box.quantity = Math.max(0, Number(box.quantity) - 1); box.status = box.quantity === 0 ? 'EMPTY' : 'ACTIVE'; await box.save({ transaction: t }); }
+      });
+    } else if (b.action === 'IN') {
+      if (unit.status === 'AVAILABLE') throw new ApiError(409, 'This unit is already available');
+      await db.sequelize.transaction(async (t) => {
+        const stock = await db.Stock.findOne({ where: { company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id }, transaction: t, lock: t.LOCK.UPDATE });
+        if (!stock) throw new ApiError(409, 'Warehouse stock record not found');
+        stock.quantity = Number(stock.quantity) + 1; await stock.save({ transaction: t });
+        await db.StockMovement.create({ company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id, box_id: unit.box_id, type: 'IN', source: 'SCAN', change: 1, quantity: 1, balance_after: stock.quantity, reference: unit.code, note: b.note || null, user_id: req.user.id }, { transaction: t });
+        unit.status = 'AVAILABLE'; await unit.save({ transaction: t });
+        if (unit.box_id) { const box = await db.Box.findByPk(unit.box_id, { transaction: t, lock: t.LOCK.UPDATE }); box.quantity = Number(box.quantity) + 1; box.status = 'ACTIVE'; await box.save({ transaction: t }); }
+      });
+    } else throw new ApiError(400, 'Action must be IN or OUT for an individual item');
+    const fresh = await db.InventoryUnit.findByPk(unit.id, { include: [{ model: db.Item }, { model: db.Box }, { model: db.Warehouse }] });
+    return res.json({ success: true, message: 'Individual item updated', data: { type: 'UNIT', unit: fresh, item: fresh.Item, box: fresh.Box, warehouse: fresh.Warehouse } });
   }
 
   const base = {

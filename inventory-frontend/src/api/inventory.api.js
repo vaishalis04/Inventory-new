@@ -1,23 +1,49 @@
-import { get, post, put, patch, del, getToken, apiBaseUrl, qs } from "./http";
+
+import {
+  get,
+  post,
+  put,
+  patch,
+  del,
+  getToken,
+  apiBaseUrl,
+  qs,
+} from "./http";
 
 export const health = () => get("/health");
 export const dashboard = () => get("/dashboard");
 
+// Items
 export const listItems = (params) => get(`/items${qs(params)}`);
 export const getItem = (id) => get(`/items/${id}`);
 export const createItem = (payload) => post("/items", payload);
 export const updateItem = (id, payload) => put(`/items/${id}`, payload);
 export const getItemQr = (id) => get(`/items/${id}/qr`);
-export const printItemLabels = (id, payload) => post(`/items/${id}/print`, payload);
+export const printItemLabels = (id, payload) =>
+  post(`/items/${id}/print`, payload);
 
-export const receiveStock = (payload) => post("/inventory/receive", payload);
-export const getStock = (params) => get(`/inventory/stock${qs(params)}`);
-export const getMovements = (params) => get(`/inventory/movements${qs(params)}`);
+// Inventory
+export const receiveStock = (payload) =>
+  post("/inventory/receive", payload);
+
+export const getStock = (params) =>
+  get(`/inventory/stock${qs(params)}`);
+
+export const getMovements = (params) =>
+  get(`/inventory/movements${qs(params)}`);
+
 export const getLowStock = () => get("/inventory/low-stock");
-export const transferStock = (payload) => post("/inventory/transfer", payload);
-export const countStock = (payload) => post("/inventory/count", payload);
 
-export const scanCode = (code) => get(`/scan/${encodeURIComponent(code)}`);
+export const transferStock = (payload) =>
+  post("/inventory/transfer", payload);
+
+export const countStock = (payload) =>
+  post("/inventory/count", payload);
+
+// Scan and adjustment
+export const scanCode = (code) =>
+  get(`/scan/${encodeURIComponent(code)}`);
+
 export const adjustScannedCode = async (code, payload) => {
   const requestId = `adjust-${Date.now()}-${Math.random()
     .toString(36)
@@ -41,46 +67,206 @@ export const adjustScannedCode = async (code, payload) => {
   return post(url, requestPayload);
 };
 
+// Boxes
 export const listBoxes = (params) => get(`/boxes${qs(params)}`);
-export const updateBox = (code, payload) => patch(`/boxes/${encodeURIComponent(code)}`, payload);
-export const getBoxQr = (code) => get(`/boxes/${encodeURIComponent(code)}/qr`);
+
+export const updateBox = (code, payload) =>
+  patch(`/boxes/${encodeURIComponent(code)}`, payload);
+
+export const getBoxQr = (code) =>
+  get(`/boxes/${encodeURIComponent(code)}/qr`);
+
 export const printBoxLabels = (code, payload) =>
   post(`/boxes/${encodeURIComponent(code)}/print`, payload);
 
-export const listWarehouses = (params) => get(`/warehouses${qs(params)}`);
-export const createWarehouse = (payload) => post("/warehouses", payload);
-export const updateWarehouse = (id, payload) => put(`/warehouses/${id}`, payload);
-export const deactivateWarehouse = (id) => del(`/warehouses/${id}`);
+// Warehouses
+export const listWarehouses = (params) =>
+  get(`/warehouses${qs(params)}`);
 
-export const listCategories = () => get("/categories");
-export const createCategory = (payload) => post("/categories", payload);
-export const listSuppliers = (params) => get(`/suppliers${qs(params)}`);
-export const createSupplier = (payload) => post("/suppliers", payload);
+export const createWarehouse = (payload) =>
+  post("/warehouses", payload);
+
+export const updateWarehouse = (id, payload) =>
+  put(`/warehouses/${id}`, payload);
+
+export const deactivateWarehouse = (id) =>
+  del(`/warehouses/${id}`);
+
+// Categories
+const extractCategoryRows = (response) => {
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  if (Array.isArray(response?.data)) {
+    return response.data;
+  }
+
+  if (Array.isArray(response?.data?.data)) {
+    return response.data.data;
+  }
+
+  if (Array.isArray(response?.categories)) {
+    return response.categories;
+  }
+
+  return [];
+};
+
+const extractCategoryMeta = (response) => {
+  return (
+    response?.meta ||
+    response?.data?.meta ||
+    response?.pagination ||
+    response?.data?.pagination ||
+    {}
+  );
+};
+
+/**
+ * Fetch all categories across every pagination page.
+ *
+ * Supports API responses such as:
+ * {
+ *   success: true,
+ *   data: [...],
+ *   meta: { total: 78, page: 1, limit: 20 }
+ * }
+ *
+ * Returns a response compatible with extractList(response).
+ */
+export const listCategories = async () => {
+  const requestedLimit = 200;
+
+  const firstResponse = await get(
+    `/categories${qs({ page: 1, limit: requestedLimit })}`
+  );
+
+  const firstRows = extractCategoryRows(firstResponse);
+  const firstMeta = extractCategoryMeta(firstResponse);
+
+  const total = Number(firstMeta.total ?? firstMeta.count ?? firstRows.length);
+  const pageLimit = Math.max(
+    1,
+    Number(firstMeta.limit ?? requestedLimit)
+  );
+
+  const reportedPage = Math.max(1, Number(firstMeta.page ?? 1));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(total / pageLimit)
+  );
+
+  // If pagination metadata is missing, return the response as received.
+  if (!Number.isFinite(total) || !firstMeta.total) {
+    return {
+      ...firstResponse,
+      data: firstRows,
+    };
+  }
+
+  const allCategories = [...firstRows];
+
+  // Fetch the remaining pages sequentially.
+  for (
+    let page = reportedPage + 1;
+    page <= totalPages;
+    page += 1
+  ) {
+    const response = await get(
+      `/categories${qs({ page, limit: pageLimit })}`
+    );
+
+    const rows = extractCategoryRows(response);
+
+    if (rows.length === 0) {
+      break;
+    }
+
+    allCategories.push(...rows);
+  }
+
+  return {
+    ...firstResponse,
+    data: allCategories,
+    meta: {
+      ...firstMeta,
+      total: allCategories.length,
+      page: 1,
+      limit: allCategories.length,
+      totalPages: 1,
+    },
+  };
+};
+
+export const createCategory = (payload) =>
+  post("/categories", payload);
+
+// Suppliers
+export const listSuppliers = (params) =>
+  get(`/suppliers${qs(params)}`);
+
+export const createSupplier = (payload) =>
+  post("/suppliers", payload);
+
+// Printers
 export const listPrinters = () => get("/printers");
-export const createPrinter = (payload) => post("/printers", payload);
 
+export const createPrinter = (payload) =>
+  post("/printers", payload);
+
+// Print jobs
 export const listPrintJobs = () => get("/print/jobs");
 
-export const listUsers = () => get("/users");
-export const createUser = (payload) => post("/users", payload);
+// Users
+export const listUsers = (params) =>
+  get(`/users${qs(params)}`);
 
+export const createUser = (payload) =>
+  post("/users", payload);
 
-/** Fetch the (possibly protected) HTML label sheet and open it in a new tab. */
+/**
+ * Fetch the protected HTML label sheet and open it in a new tab.
+ */
 export async function openPrintSheet(jobId) {
-  const win = window.open("", "_blank"); // open synchronously to avoid popup blockers
+  const win = window.open("", "_blank");
+
   try {
     const token = getToken();
-    const response = await fetch(`${apiBaseUrl}/print/jobs/${jobId}/sheet`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!response.ok) throw new Error(`Unable to load print sheet (${response.status})`);
+
+    const response = await fetch(
+      `${apiBaseUrl}/print/jobs/${jobId}/sheet`,
+      {
+        headers: token
+          ? { Authorization: `Bearer ${token}` }
+          : {},
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Unable to load print sheet (${response.status})`
+      );
+    }
+
     const html = await response.text();
-    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-    if (win) win.location.href = url;
-    else window.open(url, "_blank");
+
+    const url = URL.createObjectURL(
+      new Blob([html], { type: "text/html" })
+    );
+
+    if (win) {
+      win.location.href = url;
+    } else {
+      window.open(url, "_blank");
+    }
+
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   } catch (err) {
-    if (win) win.close();
+    if (win) {
+      win.close();
+    }
+
     throw err;
   }
 }

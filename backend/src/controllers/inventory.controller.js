@@ -12,39 +12,16 @@ exports.receive = asyncHandler(async (req, res) => {
   const result = await inv.receive(req.user, req.body);
   const opt = req.body.print || {};
   const doPrint = opt.enabled !== false;
-  const { item } = result;
-
-  const itemQr = { code: item.qr_code, image: await qr.toDataUrl(item.qr_code) };
   const boxes = [];
   const jobs = [];
   for (const box of result.boxes) {
-    boxes.push({ ...box.toJSON(), qr: { code: box.code, image: await qr.toDataUrl(box.code) } });
-    if (doPrint) {
-      // 1 box label + N material labels (N = qty in the box)  => 51 labels for a 50 qty box
-      jobs.push(await printSvc.createJob({
-        user: req.user, printerId: opt.printer_id, warehouseId: req.body.warehouse_id, box, item,
-        itemLabelCount: opt.print_item_labels === false ? 0 : box.initial_quantity,
-      }));
-    }
+    const units = result.units_by_box[box.id] || [];
+    boxes.push({ ...box.toJSON(), qr: { code: box.code, image: await qr.toDataUrl(box.code) }, units: units.map((u) => ({ ...u.toJSON(), qr: { code: u.code, image: null } })) });
+    if (doPrint) jobs.push(await printSvc.createJob({ user: req.user, printerId: opt.printer_id, warehouseId: Number(req.body.warehouse_id), box, item: result.item, units: opt.print_item_labels === false ? [] : units, itemLabelCount: opt.print_item_labels === false ? 0 : units.length }));
   }
-  if (doPrint && result.loose_quantity > 0 && opt.print_item_labels !== false) {
-    jobs.push(await printSvc.createJob({
-      user: req.user, printerId: opt.printer_id, warehouseId: req.body.warehouse_id, item,
-      itemLabelCount: result.loose_quantity, includeBoxLabel: false,
-    }));
-  }
-
-  res.status(201).json({
-    success: true,
-    data: {
-      item, item_qr: itemQr, boxes, loose_quantity: result.loose_quantity,
-      print_jobs: jobs.map((j) => ({
-        id: j.id, status: j.status, total_labels: j.total_labels, error: j.error,
-        // status SHEET => no direct printer: open this URL (with auth) and use the browser's print
-        sheet_url: j.status === 'PRINTED' ? null : `/api/print/jobs/${j.id}/sheet`,
-      })),
-    },
-  });
+  const looseUnits = result.loose_units || [];
+  if (doPrint && looseUnits.length && opt.print_item_labels !== false) jobs.push(await printSvc.createJob({ user: req.user, printerId: opt.printer_id, warehouseId: Number(req.body.warehouse_id), item: result.item, units: looseUnits, itemLabelCount: looseUnits.length, includeBoxLabel: false }));
+  res.status(201).json({ success: true, data: { item: result.item, item_qr: { code: result.item.qr_code, image: await qr.toDataUrl(result.item.qr_code) }, boxes, units: [...Object.values(result.units_by_box).flat(), ...looseUnits].map((u) => ({ ...u.toJSON(), qr: { code: u.code, image: null } })), loose_quantity: result.loose_quantity, print_jobs: jobs.map((j) => ({ id: j.id, status: j.status, total_labels: j.total_labels, error: j.error, sheet_url: j.status === 'PRINTED' ? null : `/api/print/jobs/${j.id}/sheet` })) } });
 });
 
 exports.stock = asyncHandler(async (req, res) => {

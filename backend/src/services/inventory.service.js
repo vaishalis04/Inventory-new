@@ -11,7 +11,6 @@ const sequelize = db.sequelize;
  * - Box row = one physical box.
  * - Box.quantity = individual pieces currently inside that box.
  * - Box.initial_quantity = individual pieces originally inside that box.
- * - Item.units_per_box = default capacity of a full box.
  * - Stock.quantity = total individual pieces in a warehouse, including boxed
  *   and loose pieces.
  *
@@ -190,156 +189,49 @@ async function findBoxForUpdate(code, companyId, t) {
  * Creates one physical box containing 50 pieces and adds 50 pieces
  * to warehouse stock.
  *
- * For a new item, provide item.units_per_box.
  * For an existing item, boxes[].quantity is the number of pieces
  * inside each physical box.
  */
 exports.receive = async (user, body) => {
   const companyId = user.company_id;
   const warehouseId = Number(body.warehouse_id);
-
-  if (!Number.isSafeInteger(warehouseId) || warehouseId <= 0) {
-    throw new ApiError(400, 'Valid warehouse_id is required');
-  }
-
-  const loose = nonNegativeInteger(
-    body.loose_quantity ?? 0,
-    'Loose quantity'
-  );
-
-  const requestedBoxes = Array.isArray(body.boxes) ? body.boxes : [];
-  const boxPlan = [];
-
-  for (const entry of requestedBoxes) {
-    const count = positiveInteger(entry.count ?? 1, 'Box count');
-    const quantity = positiveInteger(entry.quantity, 'Pieces per box');
-
-    if (count > 10000 || boxPlan.length + count > 10000) {
-      throw new ApiError(400, 'Too many boxes in one receipt');
-    }
-
-    for (let i = 0; i < count; i += 1) {
-      boxPlan.push(quantity);
-    }
-  }
-
-  if (boxPlan.length === 0 && loose === 0) {
-    throw new ApiError(
-      422,
-      'Provide at least one box or a positive loose_quantity'
-    );
-  }
+  if (!Number.isSafeInteger(warehouseId) || warehouseId <= 0) throw new ApiError(400, 'Valid warehouse_id is required');
+  const loose = nonNegativeInteger(body.loose_quantity ?? 0, 'Loose quantity');
+  const boxPlan = (Array.isArray(body.boxes) ? body.boxes : []).map((entry) => positiveInteger(entry.quantity, 'Items in box'));
+  if (boxPlan.length > 1000) throw new ApiError(400, 'A receipt can contain at most 1,000 boxes');
+  const unitCount = boxPlan.reduce((sum, n) => sum + n, loose);
+  if (unitCount < 1) throw new ApiError(422, 'Add at least one box with items or a positive loose quantity');
+  if (unitCount > 20000) throw new ApiError(400, 'A single receipt is limited to 20,000 individual items to protect server resources');
 
   return sequelize.transaction(async (t) => {
-    await mustFind(
-      db.Warehouse,
-      {
-        id: warehouseId,
-        company_id: companyId,
-        is_active: true,
-      },
-      t,
-      'Warehouse'
-    );
-
+    await mustFind(db.Warehouse, { id: warehouseId, company_id: companyId, is_active: true }, t, 'Warehouse');
     let item;
-
     if (body.item_id) {
-      item = await mustFind(
-        db.Item,
-        {
-          id: Number(body.item_id),
-          company_id: companyId,
-        },
-        t,
-        'Item'
-      );
+      item = await mustFind(db.Item, { id: Number(body.item_id), company_id: companyId, is_active: true }, t, 'Item');
     } else {
       const details = body.item;
-
-      if (!details || !String(details.name || '').trim()) {
-        throw new ApiError(400, 'Item name is required');
-      }
-
-      const unitsPerBox = positiveInteger(
-        details.units_per_box ?? 1,
-        'Units per box'
-      );
-
-      item = await db.Item.create(
-        {
-          ...details,
-          name: String(details.name).trim(),
-          company_id: companyId,
-          units_per_box: unitsPerBox,
-          sku: details.sku || genCode('SKU'),
-          qr_code: genCode('ITM'),
-        },
-        { transaction: t }
-      );
+      if (!details || !String(details.name || '').trim()) throw new ApiError(400, 'Item name is required');
+      item = await db.Item.create({ ...details, name: String(details.name).trim(), company_id: companyId, sku: details.sku || genCode('SKU'), qr_code: genCode('ITM') }, { transaction: t });
     }
-
     const boxes = [];
-
     for (const quantity of boxPlan) {
-      const box = await db.Box.create(
-        {
-          company_id: companyId,
-          warehouse_id: warehouseId,
-          item_id: item.id,
-          code: genCode('BOX'),
-          initial_quantity: quantity,
-          quantity,
-          status: quantity === 0 ? 'EMPTY' : 'ACTIVE',
-          supplier_id: body.supplier_id || null,
-          batch_no: body.batch_no || null,
-          location: body.location || null,
-        },
-        { transaction: t }
-      );
-
-      await applyStockChange(
-        {
-          companyId,
-          warehouseId,
-          itemId: item.id,
-          boxId: box.id,
-          delta: quantity,
-          type: 'IN',
-          source: 'RECEIVE',
-          boxBalanceAfter: quantity,
-          reference: body.reference,
-          note: body.note,
-          userId: user.id,
-        },
-        t
-      );
-
+      const box = await db.Box.create({ company_id: companyId, warehouse_id: warehouseId, item_id: item.id, code: genCode('BOX'), initial_quantity: quantity, quantity, status: 'ACTIVE', supplier_id: body.supplier_id || null, batch_no: body.batch_no || null, location: body.location || null }, { transaction: t });
+      const units = Array.from({ length: quantity }, () => ({ company_id: companyId, item_id: item.id, box_id: box.id, warehouse_id: warehouseId, code: genCode('UNT'), status: 'AVAILABLE' }));
+      await db.InventoryUnit.bulkCreate(units, { transaction: t, validate: true });
+      await applyStockChange({ companyId, warehouseId, itemId: item.id, boxId: box.id, delta: quantity, type: 'IN', source: 'RECEIVE', boxBalanceAfter: quantity, reference: body.reference, note: body.note, userId: user.id }, t);
       boxes.push(box);
     }
-
+    let looseUnits = [];
     if (loose > 0) {
-      await applyStockChange(
-        {
-          companyId,
-          warehouseId,
-          itemId: item.id,
-          delta: loose,
-          type: 'IN',
-          source: 'RECEIVE',
-          reference: body.reference,
-          note: body.note,
-          userId: user.id,
-        },
-        t
-      );
+      looseUnits = Array.from({ length: loose }, () => ({ company_id: companyId, item_id: item.id, box_id: null, warehouse_id: warehouseId, code: genCode('UNT'), status: 'AVAILABLE' }));
+      await db.InventoryUnit.bulkCreate(looseUnits, { transaction: t, validate: true });
+      looseUnits = await db.InventoryUnit.findAll({ where: { code: { [Op.in]: looseUnits.map((u) => u.code) }, company_id: companyId }, transaction: t, order: [['id', 'ASC']] });
+      await applyStockChange({ companyId, warehouseId, itemId: item.id, delta: loose, type: 'IN', source: 'RECEIVE', reference: body.reference, note: body.note, userId: user.id }, t);
     }
-
-    return {
-      item,
-      boxes,
-      loose_quantity: loose,
-    };
+    const units = await db.InventoryUnit.findAll({ where: { company_id: companyId, item_id: item.id, warehouse_id: warehouseId, status: 'AVAILABLE', ...(boxes.length ? { box_id: { [Op.in]: boxes.map((b) => b.id) } } : { code: { [Op.in]: looseUnits.map((u) => u.code) } }) }, transaction: t, order: [['id','ASC']] });
+    const unitsByBox = {};
+    for (const unit of units) { const key = unit.box_id || 'loose'; (unitsByBox[key] ||= []).push(unit); }
+    return { item, boxes, units_by_box: unitsByBox, loose_quantity: loose, loose_units: looseUnits };
   });
 };
 
@@ -413,6 +305,15 @@ async function adjustBoxTx(p, t) {
     },
     t
   );
+
+  if (p.action === 'OUT') {
+    const units = await db.InventoryUnit.findAll({ where: { box_id: box.id, company_id: p.companyId, status: 'AVAILABLE' }, limit: quantity, order: [['id', 'ASC']], transaction: t, lock: t.LOCK.UPDATE });
+    if (units.length < quantity) throw new ApiError(409, `Only ${units.length} individually tracked unit(s) remain in this box. Run the backfill migration first if this is legacy stock.`);
+    await db.InventoryUnit.update({ status: 'ISSUED' }, { where: { id: { [Op.in]: units.map(u => u.id) } }, transaction: t });
+  } else {
+    const units = Array.from({ length: quantity }, () => ({ company_id: p.companyId, item_id: box.item_id, box_id: box.id, warehouse_id: box.warehouse_id, code: genCode('UNT'), status: 'AVAILABLE' }));
+    await db.InventoryUnit.bulkCreate(units, { transaction: t, validate: true });
+  }
 
   box.quantity = newQty;
   box.status = newQty === 0 ? 'EMPTY' : 'ACTIVE';
@@ -489,6 +390,8 @@ exports.adjustItem = (p) =>
     }
 
     if (action === 'IN') {
+      const newUnits = Array.from({ length: quantity }, () => ({ company_id: companyId, item_id: item.id, box_id: null, warehouse_id: warehouseId, code: genCode('UNT'), status: 'AVAILABLE' }));
+      await db.InventoryUnit.bulkCreate(newUnits, { transaction: t, validate: true });
       const movement = await applyStockChange(
         {
           companyId,
@@ -520,6 +423,9 @@ exports.adjustItem = (p) =>
     const fromLoose = Math.min(loose, remaining);
 
     if (fromLoose > 0) {
+      const looseUnits = await db.InventoryUnit.findAll({ where: { company_id: companyId, warehouse_id: warehouseId, item_id: item.id, box_id: null, status: 'AVAILABLE' }, limit: fromLoose, order: [['id', 'ASC']], transaction: t, lock: t.LOCK.UPDATE });
+      if (looseUnits.length < fromLoose) throw new ApiError(409, 'Individually tracked loose stock is incomplete. Run src/scripts/backfill-inventory-units.js before adjusting legacy stock.');
+      await db.InventoryUnit.update({ status: 'ISSUED' }, { where: { id: { [Op.in]: looseUnits.map(u => u.id) } }, transaction: t });
       const movement = await applyStockChange(
         {
           companyId,
@@ -685,6 +591,7 @@ exports.transfer = (p) =>
         );
       }
 
+      await db.InventoryUnit.update({ warehouse_id: to.id }, { where: { box_id: box.id, company_id: companyId }, transaction: t });
       box.warehouse_id = to.id;
       await box.save({ transaction: t });
 
@@ -768,6 +675,9 @@ exports.transfer = (p) =>
       t
     );
 
+    const looseUnits = await db.InventoryUnit.findAll({ where: { company_id: companyId, warehouse_id: fromWarehouseId, item_id: itemId, box_id: null, status: 'AVAILABLE' }, limit: quantity, order: [['id', 'ASC']], transaction: t, lock: t.LOCK.UPDATE });
+    if (looseUnits.length < quantity) throw new ApiError(409, 'Individually tracked loose stock is incomplete. Run the backfill migration first.');
+    await db.InventoryUnit.update({ warehouse_id: to.id }, { where: { id: { [Op.in]: looseUnits.map(u => u.id) } }, transaction: t });
     return { moved: quantity };
   });
 
@@ -839,6 +749,16 @@ exports.adjustCount = (p) =>
 
     if (delta === 0) {
       return { movement: null, quantity: current };
+    }
+
+    if (delta > 0) {
+      const units = Array.from({ length: delta }, () => ({ company_id: companyId, item_id: itemId, box_id: null, warehouse_id: warehouseId, code: genCode('UNT'), status: 'AVAILABLE', note: note || 'Physical count adjustment' }));
+      await db.InventoryUnit.bulkCreate(units, { transaction: t, validate: true });
+    } else {
+      const take = Math.abs(delta);
+      const units = await db.InventoryUnit.findAll({ where: { company_id: companyId, warehouse_id: warehouseId, item_id: itemId, box_id: null, status: 'AVAILABLE' }, limit: take, order: [['id', 'ASC']], transaction: t, lock: t.LOCK.UPDATE });
+      if (units.length < take) throw new ApiError(409, 'Individually tracked loose stock is incomplete. Run the backfill migration first.');
+      await db.InventoryUnit.update({ status: 'LOST', note: note || 'Physical count adjustment' }, { where: { id: { [Op.in]: units.map(u => u.id) } }, transaction: t });
     }
 
     const movement = await applyStockChange(

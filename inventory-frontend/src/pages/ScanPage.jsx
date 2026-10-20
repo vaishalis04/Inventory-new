@@ -271,6 +271,7 @@ export default function ScanPage() {
 
       setResult(res.data);
       setScanned(clean);
+      if (res.data?.type === "UNIT") setAdj(previous => ({ ...previous, quantity: "1" }));
     } catch (err) {
       setResult(null);
 
@@ -319,7 +320,7 @@ export default function ScanPage() {
 
     const payload = {
       action: adj.action,
-      quantity,
+      quantity: isUnit ? 1 : quantity,
       performed_by: performedBy,
       note: adj.note.trim() || undefined,
     };
@@ -370,6 +371,7 @@ export default function ScanPage() {
 
   const isBox = result?.type === "BOX";
   const isItem = result?.type === "ITEM";
+  const isUnit = result?.type === "UNIT";
 
   const warehouseOptions = extractList(
     warehouses.data
@@ -465,6 +467,8 @@ export default function ScanPage() {
               </p>
             )}
 
+            {isUnit && <p>Individual item code: <b>{result.unit?.code}</b> · Status: <b>{result.unit?.status}</b></p>}
+
             {isItem && result.total_quantity != null && (
               <p>
                 Total quantity:{" "}
@@ -506,7 +510,7 @@ export default function ScanPage() {
                 ]}
               />
 
-              <FormField
+              {!isUnit && <FormField
                 label="Quantity"
                 type="number"
                 min="0.01"
@@ -519,7 +523,7 @@ export default function ScanPage() {
                   })
                 }
                 required
-              />
+              />}
 
               {isItem && (
                 <FormField

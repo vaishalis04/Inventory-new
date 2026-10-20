@@ -103,13 +103,21 @@ export const WarehousesPage = () => (
     ]} />
 );
 
-export const CategoriesPage = () => (
-  <MasterPage title="Categories" list={listCategories} create={createCategory}
-    fields={[
-      { name: "name", label: "Name", required: true },
-      { name: "field_schema", label: "Dynamic field schema (JSON)", json: true, placeholder: '[{"key":"resolution","label":"Resolution"}]' },
-    ]} />
-);
+export function CategoriesPage() {
+  const { data, loading, error, reload } = useFetch(listCategories);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [fields, setFields] = useState([]);
+  const [formError, setFormError] = useState("");
+  const [busy, setBusy] = useState(false);
+  function open() { setName(""); setFields([]); setFormError(""); setEditing(true); }
+  async function submit(e) {
+    e.preventDefault(); setFormError("");
+    const cleaned = fields.filter(f => f.label.trim()).map((f, i) => ({ key: (f.key || f.label).trim().toLowerCase().replace(/[^a-z0-9]+/g, "_"), label: f.label.trim(), type: f.type || "text", required: !!f.required, ...(f.type === "select" ? { options: (f.options || "").split(",").map(x => x.trim()).filter(Boolean) } : {}) }));
+    setBusy(true); try { await createCategory({ name: name.trim(), field_schema: cleaned }); setEditing(false); await loadLookups(true); reload(); } catch (err) { setFormError(err.message); } finally { setBusy(false); }
+  }
+  return <><div className="toolbar"><h1 style={{margin:0,flex:1}}>Categories</h1><button className="primary" onClick={open}>+ New category</button></div><p className="muted">Define extra item fields using a visual builder. Users will see ordinary inputs on item forms.</p><ErrorMessage error={error} onRetry={reload}/>{loading ? <Loading/> : <AutoTable rows={extractList(data)} />}{editing && <Modal title="New category" onClose={()=>setEditing(false)}><ErrorMessage error={formError}/><form onSubmit={submit}><FormField label="Category name *" value={name} onChange={e=>setName(e.target.value)} required/><h3>Custom fields</h3>{fields.map((f,i)=><div className="card" key={i}><FormField label="Field label" value={f.label} onChange={e=>setFields(old=>old.map((x,j)=>i===j?{...x,label:e.target.value}:x))} required/><FormField label="Input type" value={f.type} options={[{value:"text",label:"Text"},{value:"number",label:"Number"},{value:"date",label:"Date"},{value:"select",label:"Dropdown"},{value:"checkbox",label:"Checkbox"}]} onChange={e=>setFields(old=>old.map((x,j)=>i===j?{...x,type:e.target.value}:x))}/>{f.type==="select"&&<FormField label="Options (comma separated)" value={f.options||""} onChange={e=>setFields(old=>old.map((x,j)=>i===j?{...x,options:e.target.value}:x))}/>}<label className="inline"><input type="checkbox" checked={!!f.required} onChange={e=>setFields(old=>old.map((x,j)=>i===j?{...x,required:e.target.checked}:x))}/> Required field</label><button type="button" onClick={()=>setFields(old=>old.filter((_,j)=>j!==i))}>Remove field</button></div>)}<button type="button" onClick={()=>setFields(old=>[...old,{label:"",type:"text",required:false}])}>+ Add field</button><div className="row-actions"><button className="primary" disabled={busy||!name.trim()}>{busy?"Saving…":"Save category"}</button></div></form></Modal>}</>;
+}
 
 export const SuppliersPage = () => (
   <MasterPage title="Suppliers" list={() => listSuppliers()} create={createSupplier}

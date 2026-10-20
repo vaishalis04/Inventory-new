@@ -28,16 +28,6 @@ Item.init(
       defaultValue: 'pcs',
     },
 
-    // Number of base units in one full box.
-    units_per_box: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 1,
-      validate: {
-        min: 1,
-      },
-    },
-
     min_stock: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

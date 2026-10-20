@@ -8,6 +8,7 @@ const Category = require('./Category.model');
 const Supplier = require('./Supplier.model');
 const Item = require('./Item.model');
 const Box = require('./Box.model');
+const InventoryUnit = require('./InventoryUnit.model');
 const Stock = require('./Stock.model');
 const StockMovement = require('./StockMovement.model');
 const Printer = require('./Printer.model');
@@ -23,6 +24,7 @@ const db = {
   Supplier,
   Item,
   Box,
+  InventoryUnit,
   Stock,
   StockMovement,
   Printer,
@@ -45,6 +47,13 @@ db.Warehouse.hasMany(db.Box, fk('warehouse_id', false));
 db.Box.belongsTo(db.Warehouse, fk('warehouse_id', false));
 db.Supplier.hasMany(db.Box, fk('supplier_id'));
 db.Box.belongsTo(db.Supplier, fk('supplier_id'));
+
+db.Item.hasMany(db.InventoryUnit, fk('item_id', false));
+db.InventoryUnit.belongsTo(db.Item, fk('item_id', false));
+db.Box.hasMany(db.InventoryUnit, fk('box_id'));
+db.InventoryUnit.belongsTo(db.Box, fk('box_id'));
+db.Warehouse.hasMany(db.InventoryUnit, fk('warehouse_id', false));
+db.InventoryUnit.belongsTo(db.Warehouse, fk('warehouse_id', false));
 
 db.Item.hasMany(db.Stock, fk('item_id', false));
 db.Stock.belongsTo(db.Item, fk('item_id', false));
