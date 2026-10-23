@@ -28,6 +28,12 @@ export default function ItemsPage() {
   );
   const items = extractList(data);
 
+  // Top 5 most-issued items, shown above the table (hidden while searching).
+  const popular = useFetch(() => listItems({ limit: 5 }), []);
+  const popularItems = extractList(popular.data).filter((i) => Number(i.popularity) > 0);
+  const popularIds = new Set(popularItems.map((i) => i.id));
+  const days = popular.data?.meta?.popular_days ?? 90;
+
   async function showQr(item) {
     setQrError("");
     setQr({ item, data: null });
@@ -40,10 +46,19 @@ export default function ItemsPage() {
   }
 
   const columns = [
-    { key: "name", label: "Name" },
+    {
+      key: "name", label: "Name",
+      render: (item) => (
+        <>
+          {item.name}
+          {popularIds.has(item.id) && <span title={`Top item, last ${days} days`} style={{ marginLeft: 6 }}>🔥</span>}
+        </>
+      ),
+    },
     { key: "model", label: "Model" },
     { key: "brand", label: "Brand" },
     { key: "unit", label: "Unit" },
+    { key: "popularity", label: `Issued (${days}d)`, render: (item) => Number(item.popularity) || 0 },
     {
       key: "actions", label: "",
       render: (item) => (
@@ -62,6 +77,24 @@ export default function ItemsPage() {
         <input style={{ maxWidth: 280 }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, model or brand" />
         <Link to="/items/new"><button className="primary">+ New item</button></Link>
       </div>
+      {!debounced && popularItems.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginTop: 0 }}>🔥 Popular items <span className="muted" style={{ fontSize: 14 }}>(most issued, last {days} days)</span></h2>
+          <div className="grid">
+            {popularItems.map((item) => (
+              <div className="card" key={item.id}>
+                <strong>{item.name}</strong>
+                <p className="muted" style={{ margin: "4px 0" }}>{[item.brand, item.model].filter(Boolean).join(" · ") || "—"}</p>
+                <p style={{ margin: 0 }}>Issued: <b>{item.popularity}</b> {item.unit}</p>
+                <div className="row-actions">
+                  <Link to={`/items/${item.id}/edit`}>Edit</Link>
+                  <button className="link" onClick={() => showQr(item)}>QR</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <ErrorMessage error={error} onRetry={reload} />
       {loading ? <Loading /> : <DataTable columns={columns} rows={items} />}
       <div className="pager">

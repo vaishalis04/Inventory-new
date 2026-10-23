@@ -1,9 +1,12 @@
-const { Op } = require('sequelize');
+const { Op, literal } = require('sequelize');
 const db = require('../models');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const qr = require('../services/qr.service');
 const { genCode, paginate } = require('../utils/helpers');
+
+// "Popular" = units issued (stock movements of type OUT) in the last N days.
+const DEFAULT_POPULAR_DAYS = Number(process.env.POPULAR_DAYS) || 90;
 
 exports.list = asyncHandler(async (req, res) => {
   const { page, limit, offset } = paginate(req.query);
@@ -14,10 +17,32 @@ exports.list = asyncHandler(async (req, res) => {
     const like = { [Op.like]: `%${req.query.q}%` };
     where[Op.or] = [{ name: like }, { sku: like }, { model: like }, { brand: like }, { qr_code: like }];
   }
+
+  const days = Math.min(Math.max(parseInt(req.query.popular_days, 10) || DEFAULT_POPULAR_DAYS, 1), 365);
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const esc = (v) => db.sequelize.escape(v);
+  const popularity = literal(
+    `(SELECT COALESCE(SUM(sm.quantity), 0) FROM stock_movements AS sm ` +
+    `WHERE sm.item_id = Item.id AND sm.company_id = ${esc(req.user.company_id)} ` +
+    `AND sm.type = 'OUT' AND sm.created_at >= ${esc(since)})`
+  );
+
+  // Default: most popular first, then newest. Use ?sort=newest for the old order.
+  const order = req.query.sort === 'newest'
+    ? [['id', 'DESC']]
+    : [[literal('popularity'), 'DESC'], ['id', 'DESC']];
+
   const { rows, count } = await db.Item.findAndCountAll({
-    where, limit, offset, order: [['id', 'DESC']], include: [{ model: db.Category, attributes: ['id', 'name'] }],
+    where,
+    limit,
+    offset,
+    order,
+    attributes: { include: [[popularity, 'popularity']] },
+    include: [{ model: db.Category, attributes: ['id', 'name'] }],
   });
-  res.json({ success: true, data: rows, meta: { total: count, page, limit } });
+
+  const data = rows.map((r) => ({ ...r.toJSON(), popularity: Number(r.get('popularity')) || 0 }));
+  res.json({ success: true, data, meta: { total: count, page, limit, popular_days: days } });
 });
 
 const load = async (req) => {
