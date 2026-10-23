@@ -12,3 +12,8 @@ exports.receive = Joi.object({
 }).or('item_id', 'item');
 exports.transfer = Joi.object({ to_warehouse_id: id.required(), box_code: Joi.string(), item_id: id, from_warehouse_id: id, quantity: Joi.number().integer().min(1), note: text(255) }).or('box_code', 'item_id');
 exports.count = Joi.object({ warehouse_id: id.required(), item_id: id.required(), counted_quantity: Joi.number().integer().min(0).required(), note: text(255) });
+exports.movementUpdate = Joi.object({
+  quantity: Joi.number().integer().min(1),
+  note: text(255),
+  reference: text(100),
+}).min(1);

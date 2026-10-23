@@ -13,3 +13,10 @@ exports.createUser = Joi.object({
   name: Joi.string().max(100).required(), email: Joi.string().email().required(),
   password: Joi.string().min(6).required(), role: Joi.string().valid('admin', 'manager', 'staff').default('staff'),
 });
+exports.updateUser = Joi.object({
+  name: Joi.string().max(100),
+  email: Joi.string().email(),
+  password: Joi.string().min(6).allow('', null),
+  role: Joi.string().valid('admin', 'manager', 'staff'),
+  is_active: Joi.boolean(),
+}).min(1);

@@ -3,6 +3,7 @@ const db = require('../models');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const qr = require('../services/qr.service');
+const edit = require('../services/inventoryEdit.service');
 const { genCode, paginate } = require('../utils/helpers');
 
 // "Popular" = units issued (stock movements of type OUT) in the last N days.
@@ -76,10 +77,16 @@ exports.update = asyncHandler(async (req, res) => {
   res.json({ success: true, data: item });
 });
 
+// DELETE /items/:id           -> permanently deletes the item and ALL its stock, boxes, units, movements, print jobs
+// DELETE /items/:id?soft=true -> only deactivates (hides) the item
 exports.remove = asyncHandler(async (req, res) => {
   const item = await load(req);
-  await item.update({ is_active: false });
-  res.json({ success: true, message: 'Item deactivated' });
+  if (req.query.soft === 'true') {
+    await item.update({ is_active: false });
+    return res.json({ success: true, message: 'Item deactivated' });
+  }
+  const data = await edit.deleteItem(req.user, item);
+  res.json({ success: true, message: 'Item deleted together with its stock and movements', data });
 });
 
 exports.qrPng = asyncHandler(async (req, res) => {

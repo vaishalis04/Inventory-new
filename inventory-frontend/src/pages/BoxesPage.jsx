@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { getBoxQr, listBoxes, listPrinters, listWarehouses, printBoxLabels, updateBox } from "../api/inventory.api";
+import { deleteBox, getBoxQr, listBoxes, listPrinters, listSuppliers, listWarehouses, printBoxLabels, updateBox } from "../api/inventory.api";
 import { extractList } from "../api/http";
+import { useAuth } from "../context/AuthContext";
+import { loadLookups } from "../utils/lookup";
 import useFetch from "../hooks/useFetch";
 import { AutoTable } from "../components/DataTable";
 import FormField from "../components/FormField";
@@ -9,6 +11,9 @@ import QrImage from "../components/QrImage";
 import { ErrorMessage, Loading, Success } from "../components/LoadingState";
 
 export default function BoxesPage() {
+  const { role } = useAuth();
+  const canManage = ["admin", "manager"].includes(role);
+  const suppliers = useFetch(() => listSuppliers());
   const [filters, setFilters] = useState({ warehouse_id: "", status: "" });
   const warehouses = useFetch(() => listWarehouses());
   const printers = useFetch(listPrinters);
@@ -29,13 +34,27 @@ export default function BoxesPage() {
   async function save(e) {
     e.preventDefault();
     setMsg({ error: "", ok: "" });
-    const payload = {};
-    if (form.status) payload.status = form.status;
-    if (form.location !== undefined && form.location !== "") payload.location = form.location;
+    const payload = {
+      location: form.location ?? "",
+      batch_no: form.batch_no ?? "",
+      supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
+    };
+    if (form.status === "ACTIVE" || form.status === "ARCHIVED") payload.status = form.status;
     try {
       await updateBox(codeOf(modal.box), payload);
-      setModal(null); reload();
-    } catch (err) { setMsg({ error: err.message, ok: "" }); }
+      setModal(null); await loadLookups(true); reload();
+    } catch (err) { setMsg({ error: err.details ? `${err.message}: ${JSON.stringify(err.details)}` : err.message, ok: "" }); }
+  }
+
+  async function remove(box) {
+    if (!window.confirm(
+      `Delete box ${codeOf(box)}?\n\n` +
+      `This permanently removes the box, its ${box.quantity ?? 0} piece(s) and ALL of its stock movements. ` +
+      `Warehouse stock goes down by ${box.quantity ?? 0}.`
+    )) return;
+    setMsg({ error: "", ok: "" });
+    try { await deleteBox(codeOf(box)); await loadLookups(true); reload(); }
+    catch (err) { setMsg({ error: err.message, ok: "" }); }
   }
 
   async function doPrint(e) {
@@ -50,8 +69,9 @@ export default function BoxesPage() {
   const actions = (box) => (
     <div className="row-actions">
       <button className="link" onClick={() => openQr(box)}>QR</button>
-      <button className="link" onClick={() => { setMsg({ error: "", ok: "" }); setForm({ status: box.status ?? "", location: box.location ?? "" }); setModal({ type: "edit", box }); }}>Edit</button>
+      {canManage && <button className="link" onClick={() => { setMsg({ error: "", ok: "" }); setForm({ status: box.status === "EMPTY" ? "ACTIVE" : box.status ?? "ACTIVE", location: box.location ?? "", batch_no: box.batch_no ?? "", supplier_id: box.supplier_id ?? "" }); setModal({ type: "edit", box }); }}>Edit</button>}
       <button className="link" onClick={() => { setMsg({ error: "", ok: "" }); setForm({ printer_id: "" }); setModal({ type: "print", box }); }}>Print</button>
+      {canManage && <button className="link danger" onClick={() => remove(box)}>Delete</button>}
     </div>
   );
 
@@ -62,7 +82,7 @@ export default function BoxesPage() {
         <FormField label="Warehouse" value={filters.warehouse_id} onChange={(e) => setFilters({ ...filters, warehouse_id: e.target.value })}
           options={extractList(warehouses.data).map((w) => ({ value: w.id, label: w.name }))} />
         <FormField label="Status" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-          options={["ACTIVE", "EMPTY", "TRANSFERRED"].map((s) => ({ value: s, label: s }))} hint="Adjust to your backend's statuses" />
+          options={["ACTIVE", "EMPTY", "ARCHIVED"].map((s) => ({ value: s, label: s }))} />
       </div>
       <ErrorMessage error={!modal ? error : ""} onRetry={reload} />
       {loading ? <Loading /> : <AutoTable rows={extractList(data)} actions={actions} rowKey={(b) => codeOf(b) ?? b.id} />}
@@ -74,8 +94,13 @@ export default function BoxesPage() {
           {modal.type === "qr" && (modal.data ? <QrImage data={modal.data} size={220} /> : !msg.error && <Loading />)}
           {modal.type === "edit" && (
             <form onSubmit={save}>
-              <FormField label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} />
+              <FormField label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
+                options={[{ value: "ACTIVE", label: "ACTIVE" }, { value: "ARCHIVED", label: "ARCHIVED (box must be empty)" }]}
+                hint="A box becomes EMPTY automatically when its quantity reaches 0." />
               <FormField label="Location" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+              <FormField label="Batch no." value={form.batch_no} onChange={(e) => setForm({ ...form, batch_no: e.target.value })} />
+              <FormField label="Supplier" value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}
+                options={extractList(suppliers.data).map((x) => ({ value: x.id, label: x.name }))} />
               <button className="primary">Save</button>
             </form>
           )}

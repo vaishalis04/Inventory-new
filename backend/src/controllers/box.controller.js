@@ -3,6 +3,7 @@ const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const qr = require('../services/qr.service');
 const printSvc = require('../services/print.service');
+const edit = require('../services/inventoryEdit.service');
 const { paginate } = require('../utils/helpers');
 
 const findBox = async (req) => {
@@ -22,12 +23,30 @@ exports.list = asyncHandler(async (req, res) => {
   res.json({ success: true, data: rows, meta: { total: count, page, limit } });
 });
 
-exports.update = asyncHandler(async (req, res) => { // move rack/location, batch, archive
+exports.update = asyncHandler(async (req, res) => { // move rack/location, batch, supplier, archive
   const box = await findBox(req);
-  const { location, batch_no, status } = req.body;
+  const { location, batch_no, status, supplier_id } = req.body;
   if (status === 'ARCHIVED' && box.quantity > 0) throw new ApiError(409, 'Empty the box before archiving');
-  await box.update({ location, batch_no, status });
+  const patch = {};
+  if (location !== undefined) patch.location = location || null;
+  if (batch_no !== undefined) patch.batch_no = batch_no || null;
+  if (supplier_id !== undefined) {
+    if (supplier_id !== null) {
+      const supplier = await db.Supplier.findOne({ where: { id: supplier_id, company_id: req.user.company_id } });
+      if (!supplier) throw new ApiError(404, 'Supplier not found');
+    }
+    patch.supplier_id = supplier_id;
+  }
+  if (status !== undefined) patch.status = status === 'ACTIVE' && Number(box.quantity) === 0 ? 'EMPTY' : status;
+  await box.update(patch);
   res.json({ success: true, data: box });
+});
+
+// Delete a box with all of its pieces and movement history.
+exports.remove = asyncHandler(async (req, res) => {
+  const box = await findBox(req);
+  const data = await edit.deleteBox(req.user, box);
+  res.json({ success: true, message: 'Box deleted together with its units and movements', data });
 });
 
 exports.qrPng = asyncHandler(async (req, res) => {

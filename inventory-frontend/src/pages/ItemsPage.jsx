@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getItemQr, listItems } from "../api/inventory.api";
+import { deleteItem, getItemQr, listItems } from "../api/inventory.api";
 import { extractList } from "../api/http";
+import { useAuth } from "../context/AuthContext";
+import { loadLookups } from "../utils/lookup";
 import useFetch from "../hooks/useFetch";
 import { DataTable } from "../components/DataTable";
 import { ErrorMessage, Loading } from "../components/LoadingState";
@@ -11,6 +13,9 @@ import QrImage from "../components/QrImage";
 const LIMIT = 20;
 
 export default function ItemsPage() {
+  const { role } = useAuth();
+  const canManage = ["admin", "manager"].includes(role);
+  const [deleteError, setDeleteError] = useState("");
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [page, setPage] = useState(1);
@@ -45,6 +50,20 @@ export default function ItemsPage() {
     }
   }
 
+  async function removeItem(item) {
+    if (!window.confirm(
+      `Delete "${item.name}" permanently?\n\n` +
+      `This also deletes ALL of its stock, boxes, individual units, stock movements and print jobs. This cannot be undone.`
+    )) return;
+    setDeleteError("");
+    try {
+      await deleteItem(item.id);
+      await loadLookups(true);
+      reload();
+      popular.reload();
+    } catch (err) { setDeleteError(err.message); }
+  }
+
   const columns = [
     {
       key: "name", label: "Name",
@@ -65,6 +84,7 @@ export default function ItemsPage() {
         <div className="row-actions">
           <Link to={`/items/${item.id}/edit`}>Edit</Link>
           <button className="link" onClick={() => showQr(item)}>QR</button>
+          {canManage && <button className="link danger" onClick={() => removeItem(item)}>Delete</button>}
         </div>
       ),
     },
@@ -89,13 +109,14 @@ export default function ItemsPage() {
                 <div className="row-actions">
                   <Link to={`/items/${item.id}/edit`}>Edit</Link>
                   <button className="link" onClick={() => showQr(item)}>QR</button>
+                  {canManage && <button className="link danger" onClick={() => removeItem(item)}>Delete</button>}
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
-      <ErrorMessage error={error} onRetry={reload} />
+      <ErrorMessage error={error || deleteError} onRetry={reload} />
       {loading ? <Loading /> : <DataTable columns={columns} rows={items} />}
       <div className="pager">
         <button disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>

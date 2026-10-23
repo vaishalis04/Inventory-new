@@ -14,6 +14,7 @@ router.use(protect);
 router.get('/', box.list);
 router.get('/:code/qr', box.qrPng);
 router.patch('/:code', adminMgr, validate(boxUpdateSchema), box.update);
+router.delete('/:code', adminMgr, box.remove);
 router.post('/:code/print', validate(reprintSchema), box.reprint);
 
 module.exports = router;

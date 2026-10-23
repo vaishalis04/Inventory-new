@@ -18,6 +18,7 @@ export const listItems = (params) => get(`/items${qs(params)}`);
 export const getItem = (id) => get(`/items/${id}`);
 export const createItem = (payload) => post("/items", payload);
 export const updateItem = (id, payload) => put(`/items/${id}`, payload);
+export const deleteItem = (id) => del(`/items/${id}`);
 export const getItemQr = (id) => get(`/items/${id}/qr`);
 export const printItemLabels = (id, payload) =>
   post(`/items/${id}/print`, payload);
@@ -31,6 +32,18 @@ export const getStock = (params) =>
 
 export const getMovements = (params) =>
   get(`/inventory/movements${qs(params)}`);
+
+// Edit a movement (quantity / note / reference). Stock, box, units and
+// later balances are recalculated by the server.
+export const updateMovement = (id, payload) =>
+  put(`/inventory/movements/${id}`, payload);
+
+// Delete a movement and reverse its effect everywhere.
+export const deleteMovement = (id) =>
+  del(`/inventory/movements/${id}`);
+
+// Delete a stock record with its boxes, units and movements.
+export const deleteStock = (id) => del(`/inventory/stock/${id}`);
 
 export const getLowStock = () => get("/inventory/low-stock");
 
@@ -73,6 +86,9 @@ export const listBoxes = (params) => get(`/boxes${qs(params)}`);
 export const updateBox = (code, payload) =>
   patch(`/boxes/${encodeURIComponent(code)}`, payload);
 
+export const deleteBox = (code) =>
+  del(`/boxes/${encodeURIComponent(code)}`);
+
 export const getBoxQr = (code) =>
   get(`/boxes/${encodeURIComponent(code)}/qr`);
 
@@ -89,8 +105,9 @@ export const createWarehouse = (payload) =>
 export const updateWarehouse = (id, payload) =>
   put(`/warehouses/${id}`, payload);
 
-export const deactivateWarehouse = (id) =>
-  del(`/warehouses/${id}`);
+// cascade=true also deletes the warehouse's stock, boxes, units and movements.
+export const deleteWarehouse = (id, cascade = false) =>
+  del(`/warehouses/${id}${cascade ? "?cascade=true" : ""}`);
 
 // Categories
 const extractCategoryRows = (response) => {
@@ -202,6 +219,11 @@ export const listCategories = async () => {
 export const createCategory = (payload) =>
   post("/categories", payload);
 
+export const updateCategory = (id, payload) =>
+  put(`/categories/${id}`, payload);
+
+export const deleteCategory = (id) => del(`/categories/${id}`);
+
 // Suppliers
 export const listSuppliers = (params) =>
   get(`/suppliers${qs(params)}`);
@@ -209,11 +231,21 @@ export const listSuppliers = (params) =>
 export const createSupplier = (payload) =>
   post("/suppliers", payload);
 
+export const updateSupplier = (id, payload) =>
+  put(`/suppliers/${id}`, payload);
+
+export const deleteSupplier = (id) => del(`/suppliers/${id}`);
+
 // Printers
 export const listPrinters = () => get("/printers");
 
 export const createPrinter = (payload) =>
   post("/printers", payload);
+
+export const updatePrinter = (id, payload) =>
+  put(`/printers/${id}`, payload);
+
+export const deletePrinter = (id) => del(`/printers/${id}`);
 
 // Print jobs
 export const listPrintJobs = () => get("/print/jobs");
@@ -224,6 +256,11 @@ export const listUsers = (params) =>
 
 export const createUser = (payload) =>
   post("/users", payload);
+
+export const updateUser = (id, payload) =>
+  put(`/users/${id}`, payload);
+
+export const deleteUser = (id) => del(`/users/${id}`);
 
 /**
  * Fetch the protected HTML label sheet and open it in a new tab.

@@ -3,6 +3,7 @@ const db = require('../models');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const inv = require('../services/inventory.service');
+const edit = require('../services/inventoryEdit.service');
 const qr = require('../services/qr.service');
 const printSvc = require('../services/print.service');
 const { paginate } = require('../utils/helpers');
@@ -94,4 +95,22 @@ exports.count = asyncHandler(async (req, res) => {
 
 exports.lowStock = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await inv.lowStock(req.user.company_id) });
+});
+
+// Edit a movement: quantity / note / reference. Stock, box, units and later balances follow automatically.
+exports.updateMovement = asyncHandler(async (req, res) => {
+  const data = await edit.editMovement(req.user, Number(req.params.id), req.body);
+  res.json({ success: true, message: data.changed ? 'Movement updated' : 'Nothing to change', data });
+});
+
+// Delete a movement and reverse its effect everywhere.
+exports.removeMovement = asyncHandler(async (req, res) => {
+  const data = await edit.deleteMovement(req.user, Number(req.params.id));
+  res.json({ success: true, message: 'Movement deleted and its effect reversed', data });
+});
+
+// Delete a stock record together with its boxes, units and movements.
+exports.removeStock = asyncHandler(async (req, res) => {
+  const data = await edit.deleteStock(req.user, Number(req.params.id));
+  res.json({ success: true, message: 'Stock record deleted together with its movements', data });
 });

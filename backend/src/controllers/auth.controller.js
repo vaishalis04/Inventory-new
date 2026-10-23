@@ -47,3 +47,57 @@ exports.listUsers = asyncHandler(async (req, res) => {
   const users = await db.User.findAll({ where: { company_id: req.user.company_id }, attributes: { exclude: ['password'] } });
   res.json({ success: true, data: users });
 });
+
+const findUser = async (req) => {
+  const user = await db.User.findOne({ where: { id: req.params.id, company_id: req.user.company_id } });
+  if (!user) throw new ApiError(404, 'User not found');
+  return user;
+};
+
+const activeAdminCount = (companyId, exceptId) =>
+  db.User.count({
+    where: { company_id: companyId, role: 'admin', is_active: true, id: { [db.Sequelize.Op.ne]: exceptId } },
+  });
+
+// Admin edits a user: name, email, role, active flag, optional new password.
+exports.updateUser = asyncHandler(async (req, res) => {
+  const user = await findUser(req);
+  const b = req.body;
+  const isSelf = Number(user.id) === Number(req.user.id);
+  const patch = {};
+
+  if (b.email !== undefined && b.email !== user.email) {
+    if (await db.User.findOne({ where: { email: b.email } })) throw new ApiError(409, 'Email already registered');
+    patch.email = b.email;
+  }
+  if (b.name !== undefined) patch.name = b.name;
+  if (b.password) patch.password = await bcrypt.hash(b.password, 10);
+
+  const losesAdmin =
+    (b.role !== undefined && b.role !== 'admin' && user.role === 'admin') ||
+    (b.is_active === false && user.role === 'admin' && user.is_active);
+  if (losesAdmin) {
+    if (isSelf) throw new ApiError(409, 'You cannot remove your own admin access or deactivate yourself');
+    if ((await activeAdminCount(user.company_id, user.id)) < 1) throw new ApiError(409, 'At least one active admin is required');
+  }
+  if (b.role !== undefined) patch.role = b.role;
+  if (b.is_active !== undefined) patch.is_active = b.is_active;
+
+  await user.update(patch);
+  res.json({ success: true, data: safe(user), message: 'User updated' });
+});
+
+// Admin deletes a user. Their past stock movements and print jobs are kept but no longer point at them.
+exports.deleteUser = asyncHandler(async (req, res) => {
+  const user = await findUser(req);
+  if (Number(user.id) === Number(req.user.id)) throw new ApiError(409, 'You cannot delete your own account');
+  if (user.role === 'admin' && user.is_active && (await activeAdminCount(user.company_id, user.id)) < 1) {
+    throw new ApiError(409, 'At least one active admin is required');
+  }
+  await db.sequelize.transaction(async (t) => {
+    await db.StockMovement.update({ user_id: null }, { where: { user_id: user.id, company_id: user.company_id }, transaction: t });
+    await db.PrintJob.update({ created_by: null }, { where: { created_by: user.id, company_id: user.company_id }, transaction: t });
+    await user.destroy({ transaction: t });
+  });
+  res.json({ success: true, message: 'User deleted' });
+});
