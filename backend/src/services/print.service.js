@@ -29,17 +29,25 @@ const LABEL_GAP = 0;
 function zplLabel({ code, lines, copies, printer }) {
   const w = dots(printer.label_width_mm);
   const h = dots(printer.label_height_mm);
-  const mag = Math.max(2, Math.min(8, Math.floor((h - 20) / 33)));
-  const textX = 20 + 33 * mag + 15;
-  const textHeight = Math.max(18, Math.min(30, Math.floor(h / 8)));
+
+  // Print QR at the top, followed by all text underneath.
+  const qrSize = Math.max(8, Math.min(33, Math.floor(w * 0.65)));
+  const qrX = Math.floor((w - qrSize) / 2);
+  const qrY = 8;
+  const textHeight = Math.max(12, Math.min(22, Math.floor(h / 10)));
+  const textStartY = qrY + qrSize + 5;
+  const lineGap = textHeight + 3;
 
   let zpl = `^XA^CI28^PW${w}^LL${h}^LH0,0\n`;
 
-  // The QR image contains the unique code. Do not print the code as text.
-  zpl += `^FO20,20^BQN,2,${mag}^FDMA,${qr.payload(code)}^FS\n`;
+  zpl += `^FO${qrX},${qrY}^BQN,2,${Math.max(
+    2,
+    Math.min(8, Math.floor(qrSize / 33))
+  )}^FDMA,${qr.payload(code)}^FS\n`;
 
   lines.filter(Boolean).forEach((line, i) => {
-    zpl += `^FO${textX},${25 + i * (textHeight + 8)}^A0N,${textHeight},${textHeight}^FD${clean(line)}^FS\n`;
+    const text = clean(line, 40);
+    zpl += `^FO5,${textStartY + i * lineGap}^A0N,${textHeight},${textHeight}^FB${w - 10},1,0,C,0^FD${text}^FS\n`;
   });
 
   zpl += `^PQ${copies}^XZ\n`;
@@ -63,9 +71,10 @@ function buildZpl({
       copies: 1,
       printer,
       lines: [
-        item.name,
-        item.model || item.sku,
-        `Qty: ${box.initial_quantity} ${item.unit || ''}`,
+        `Box No: ${box.code}`,
+        `Item: ${item.name}`,
+        item.model || item.sku ? `Model/SKU: ${item.model || item.sku}` : '',
+        `Qty: ${box.initial_quantity} ${item.unit || ''}`.trim(),
       ],
     });
   }
@@ -76,9 +85,10 @@ function buildZpl({
       copies: 1,
       printer,
       lines: [
-        item.name,
-        item.model,
-        item.brand,
+        `Unit No: ${unit.code}`,
+        `Item: ${item.name}`,
+        item.model ? `Model: ${item.model}` : '',
+        item.brand ? `Brand: ${item.brand}` : '',
       ],
     });
   }
@@ -261,9 +271,12 @@ function escapeHtml(value) {
   );
 }
 
-function makeLabel({ image, lines, width, height }) {
+function makeLabel({ image, lines }) {
   const visibleLines = lines.filter(
-    (line) => line !== null && line !== undefined && String(line).trim() !== ''
+    (line) =>
+      line !== null &&
+      line !== undefined &&
+      String(line).trim() !== ''
   );
 
   return `
@@ -325,23 +338,24 @@ exports.buildSheet = async (job) => {
   const layout = getSheetLayout(width, height);
   const labels = [];
 
-  // Box label: QR contains the box code; the code is not printed as text.
+  // Box label: QR first, then Box No. and all box/item details.
   if (job.include_box_label && box) {
     labels.push(
       makeLabel({
         image: await qr.toDataUrl(box.code),
-        width,
-        height,
         lines: [
-          item.name,
-          item.model || item.sku,
+          `Box No: ${box.code}`,
+          `Item: ${item.name}`,
+          item.model ? `Model: ${item.model}` : '',
+          !item.model && item.sku ? `SKU: ${item.sku}` : '',
+          item.brand ? `Brand: ${item.brand}` : '',
           `Qty: ${box.initial_quantity} ${item.unit || ''}`.trim(),
         ],
       })
     );
   }
 
-  // Individual unit labels: QR contains each unique unit code.
+  // Individual unit labels: QR first, then unit and item details.
   if (job.item_label_count > 0) {
     const units = await db.InventoryUnit.findAll({
       where: {
@@ -358,20 +372,18 @@ exports.buildSheet = async (job) => {
       labels.push(
         makeLabel({
           image: await qr.toDataUrl(unit.code),
-          width,
-          height,
           lines: [
-            item.name,
-            item.model,
-            item.brand,
+            `Unit No: ${unit.code}`,
+            `Item: ${item.name}`,
+            item.model ? `Model: ${item.model}` : '',
+            item.brand ? `Brand: ${item.brand}` : '',
           ],
         })
       );
     }
   }
 
-  // Split labels into complete pages so labels do not spill onto
-  // unexpected pages when printing from the browser.
+  // Split labels into complete pages.
   const pages = [];
 
   for (let i = 0; i < labels.length; i += layout.perPage) {
@@ -437,6 +449,7 @@ exports.buildSheet = async (job) => {
     justify-content: start;
   }
 
+  /* Stack QR code first and all text below it. */
   .label {
     width: ${width}mm;
     height: ${height}mm;
@@ -444,9 +457,10 @@ exports.buildSheet = async (job) => {
     min-height: 0;
     padding: 1mm;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 1mm;
+    gap: 0.5mm;
     overflow: hidden;
     border: 0.15mm dashed #b8b8b8;
     background: #fff;
@@ -455,9 +469,18 @@ exports.buildSheet = async (job) => {
   }
 
   .qr-wrap {
-    flex: 0 0 ${Math.max(10, Math.min(height - 4, width * 0.42))}mm;
-    width: ${Math.max(10, Math.min(height - 4, width * 0.42))}mm;
-    height: ${Math.max(10, height - 4)}mm;
+    flex: 0 0 ${Math.max(
+      8,
+      Math.min(height * 0.52, width * 0.48)
+    )}mm;
+    width: ${Math.max(
+      8,
+      Math.min(height * 0.52, width * 0.48)
+    )}mm;
+    height: ${Math.max(
+      8,
+      Math.min(height * 0.52, width * 0.48)
+    )}mm;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -476,30 +499,35 @@ exports.buildSheet = async (job) => {
 
   .label-text {
     flex: 1 1 auto;
+    width: 100%;
     min-width: 0;
-    max-height: 100%;
+    min-height: 0;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 1mm;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.4mm;
+    text-align: center;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
 
   .label-title {
-    max-height: 3.5em;
+    max-width: 100%;
+    max-height: 2.2em;
     overflow: hidden;
     font-size: ${Math.max(5, Math.min(8, height * 0.23))}pt;
     font-weight: 700;
-    line-height: 1.15;
+    line-height: 1.1;
   }
 
   .label-detail {
-    max-height: 2.4em;
+    max-width: 100%;
+    max-height: 2.2em;
     overflow: hidden;
     font-size: ${Math.max(4.5, Math.min(6.5, height * 0.19))}pt;
-    line-height: 1.15;
+    line-height: 1.1;
   }
 
   @page {
