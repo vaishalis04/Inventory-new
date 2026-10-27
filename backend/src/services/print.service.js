@@ -1,5 +1,6 @@
 
 const net = require('net');
+const { Op } = require('sequelize');
 const db = require('../models');
 const qr = require('./qr.service');
 
@@ -361,12 +362,13 @@ exports.buildSheet = async (job) => {
       where: {
         company_id: job.company_id,
         item_id: item.id,
-        ...(box ? { box_id: box.id } : { box_id: null }),
+        ...(box ? { box_id: box.id } : { box_id: null, received_at: { [Op.lte]: job.createdAt } }),
         status: 'AVAILABLE',
       },
       limit: job.item_label_count,
-      order: [['id', 'ASC']],
+      order: [['id', box ? 'ASC' : 'DESC']],
     });
+    if (!box) units.reverse();
 
     for (const unit of units) {
       labels.push(

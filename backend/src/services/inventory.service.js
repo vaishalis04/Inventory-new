@@ -196,7 +196,10 @@ exports.receive = async (user, body) => {
   const companyId = user.company_id;
   const warehouseId = Number(body.warehouse_id);
   if (!Number.isSafeInteger(warehouseId) || warehouseId <= 0) throw new ApiError(400, 'Valid warehouse_id is required');
-  const loose = nonNegativeInteger(body.loose_quantity ?? 0, 'Loose quantity');
+  // Item-based receiving: each barcode becomes one individual item (no box).
+  const barcodes = (Array.isArray(body.barcodes) ? body.barcodes : []).map((b) => String(b).trim().toUpperCase()).filter(Boolean);
+  if (new Set(barcodes).size !== barcodes.length) throw new ApiError(422, 'Duplicate barcodes found. Every item must have a unique barcode');
+  const loose = barcodes.length ? barcodes.length : nonNegativeInteger(body.loose_quantity ?? 0, 'Loose quantity');
   const boxPlan = (Array.isArray(body.boxes) ? body.boxes : []).map((entry) => positiveInteger(entry.quantity, 'Items in box'));
   if (boxPlan.length > 1000) throw new ApiError(400, 'A receipt can contain at most 1,000 boxes');
   const unitCount = boxPlan.reduce((sum, n) => sum + n, loose);
@@ -213,6 +216,10 @@ exports.receive = async (user, body) => {
       if (!details || !String(details.name || '').trim()) throw new ApiError(400, 'Item name is required');
       item = await db.Item.create({ ...details, name: String(details.name).trim(), company_id: companyId, sku: details.sku || genCode('SKU'), qr_code: genCode('ITM') }, { transaction: t });
     }
+    if (barcodes.length) {
+      const taken = await db.InventoryUnit.findAll({ where: { code: { [Op.in]: barcodes } }, attributes: ['code'], transaction: t });
+      if (taken.length) throw new ApiError(409, `Barcode already exists: ${taken.slice(0, 5).map((u) => u.code).join(', ')}${taken.length > 5 ? '…' : ''}`);
+    }
     const boxes = [];
     for (const quantity of boxPlan) {
       const box = await db.Box.create({ company_id: companyId, warehouse_id: warehouseId, item_id: item.id, code: genCode('BOX'), initial_quantity: quantity, quantity, status: 'ACTIVE', supplier_id: body.supplier_id || null, batch_no: body.batch_no || null, location: body.location || null }, { transaction: t });
@@ -223,7 +230,7 @@ exports.receive = async (user, body) => {
     }
     let looseUnits = [];
     if (loose > 0) {
-      looseUnits = Array.from({ length: loose }, () => ({ company_id: companyId, item_id: item.id, box_id: null, warehouse_id: warehouseId, code: genCode('UNT'), status: 'AVAILABLE' }));
+      looseUnits = Array.from({ length: loose }, (_, i) => ({ company_id: companyId, item_id: item.id, box_id: null, warehouse_id: warehouseId, code: barcodes[i] || genCode('UNT'), status: 'AVAILABLE' }));
       await db.InventoryUnit.bulkCreate(looseUnits, { transaction: t, validate: true });
       looseUnits = await db.InventoryUnit.findAll({ where: { code: { [Op.in]: looseUnits.map((u) => u.code) }, company_id: companyId }, transaction: t, order: [['id', 'ASC']] });
       await applyStockChange({ companyId, warehouseId, itemId: item.id, delta: loose, type: 'IN', source: 'RECEIVE', reference: body.reference, note: body.note, userId: user.id }, t);

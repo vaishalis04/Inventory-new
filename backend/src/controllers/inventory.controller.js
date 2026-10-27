@@ -21,8 +21,9 @@ exports.receive = asyncHandler(async (req, res) => {
     if (doPrint) jobs.push(await printSvc.createJob({ user: req.user, printerId: opt.printer_id, warehouseId: Number(req.body.warehouse_id), box, item: result.item, units: opt.print_item_labels === false ? [] : units, itemLabelCount: opt.print_item_labels === false ? 0 : units.length }));
   }
   const looseUnits = result.loose_units || [];
+  const looseOut = await Promise.all(looseUnits.map(async (u) => ({ ...u.toJSON(), qr: { code: u.code, image: await qr.toDataUrl(u.code) } })));
   if (doPrint && looseUnits.length && opt.print_item_labels !== false) jobs.push(await printSvc.createJob({ user: req.user, printerId: opt.printer_id, warehouseId: Number(req.body.warehouse_id), item: result.item, units: looseUnits, itemLabelCount: looseUnits.length, includeBoxLabel: false }));
-  res.status(201).json({ success: true, data: { item: result.item, item_qr: { code: result.item.qr_code, image: await qr.toDataUrl(result.item.qr_code) }, boxes, units: [...Object.values(result.units_by_box).flat(), ...looseUnits].map((u) => ({ ...u.toJSON(), qr: { code: u.code, image: null } })), loose_quantity: result.loose_quantity, print_jobs: jobs.map((j) => ({ id: j.id, status: j.status, total_labels: j.total_labels, error: j.error, sheet_url: j.status === 'PRINTED' ? null : `/api/print/jobs/${j.id}/sheet` })) } });
+  res.status(201).json({ success: true, data: { item: result.item, item_qr: { code: result.item.qr_code, image: await qr.toDataUrl(result.item.qr_code) }, boxes, units: [...Object.values(result.units_by_box).flat().map((u) => ({ ...u.toJSON(), qr: { code: u.code, image: null } })), ...looseOut], loose_quantity: result.loose_quantity, print_jobs: jobs.map((j) => ({ id: j.id, status: j.status, total_labels: j.total_labels, error: j.error, sheet_url: j.status === 'PRINTED' ? null : `/api/print/jobs/${j.id}/sheet` })) } });
 });
 
 exports.stock = asyncHandler(async (req, res) => {

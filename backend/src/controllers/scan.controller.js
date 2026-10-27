@@ -51,6 +51,9 @@ async function resolve(rawCode, companyId) {
     if (!item) throw new ApiError(404, 'Material not found');
     return { kind: 'ITEM', row: item };
   }
+  // Item-level barcodes entered/scanned while receiving stock (no UNT- prefix).
+  const custom = await db.InventoryUnit.findOne({ where: { code, company_id: companyId }, include: [{ model: db.Item }, { model: db.Box }, { model: db.Warehouse }] });
+  if (custom) return { kind: 'UNIT', row: custom };
   throw new ApiError(400, 'Unrecognised QR code');
 }
 
