@@ -15,6 +15,39 @@ const parseSchema = (v) => { if(Array.isArray(v)) return v; if(typeof v === "str
 const MAX_ITEMS = 1000;
 const normCode = (v) => String(v ?? "").trim().toUpperCase();
 
+// ---- Barcode decoding: zxing-wasm first (fast and reliable for 1D barcodes), ZXing-js/jsQR as a fallback ----
+let wasmReaderPromise;
+function getWasmReader() {
+  if (!wasmReaderPromise) wasmReaderPromise = import("zxing-wasm/reader").then((m) => (typeof m.readBarcodes === "function" ? m.readBarcodes : null)).catch(() => null);
+  return wasmReaderPromise;
+}
+const barcodeKind = (r) => (/^(EAN|UPC)/i.test(r.format || "") ? "product" : /QR|Matrix|Aztec|PDF417|MaxiCode/i.test(r.format || "") ? "matrix" : "linear");
+/** A label can hold several barcodes (S/N, EAN, MAC, unit sticker). Choose the serial number: topmost linear barcode; EAN/UPC only when it is the only code in view. */
+function pickBest(results) {
+  const ok = (results || []).filter((r) => r.isValid !== false && r.text && !/^(UNT|BOX|ITM)-/i.test(r.text) && !/^https?:\/\//i.test(r.text));
+  const y = (r) => r.position?.topLeft?.y ?? 0;
+  const linear = ok.filter((r) => barcodeKind(r) === "linear").sort((a, b) => y(a) - y(b));
+  if (linear.length) return linear[0].text;
+  const product = ok.filter((r) => barcodeKind(r) === "product");
+  if (product.length && ok.length === 1) return product[0].text;
+  const matrix = ok.filter((r) => barcodeKind(r) === "matrix");
+  if (matrix.length && !product.length) return matrix[0].text;
+  return "";
+}
+async function decodeCanvas(canvas) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true }); const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const readBarcodes = await getWasmReader();
+  if (readBarcodes) {
+    try { return pickBest(await readBarcodes(img, { tryHarder: true, maxNumberOfSymbols: 8 })); }
+    catch { wasmReaderPromise = Promise.resolve(null); /* use the fallback decoder from now on */ }
+  }
+  const lum = new Uint8ClampedArray(img.width * img.height);
+  for (let i = 0, p = 0; i < lum.length; i++, p += 4) lum[i] = (img.data[p] * 306 + img.data[p + 1] * 601 + img.data[p + 2] * 117) >> 10;
+  const zx = new MultiFormatReader(); const hints = new Map(); hints.set(DecodeHintType.TRY_HARDER, true); zx.setHints(hints);
+  try { const t = zx.decode(new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(lum, img.width, img.height)))).getText(); if (t) return t; } catch { /* none */ }
+  return jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" })?.data || "";
+}
+
 // ---- Fallback: read the printed serial number (OCR) when the barcode itself cannot be decoded ----
 let ocrWorkerPromise = null;
 function getOcrWorker() {
@@ -31,21 +64,53 @@ function getOcrWorker() {
 /** Picks the serial number (letters + digits, 8-24 chars) printed after the "S/N" label. Ignores model (has dashes), EAN (digits only) and MAC (has colons). */
 function pickSerial(text) {
   const lines = String(text || "").toUpperCase().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const valid = (t) => /^[A-Z0-9]{8,24}$/.test(t) && /[A-Z]/.test(t) && /\d/.test(t);
+  const valid = (t) => /^[A-Z0-9]{12,24}$/.test(t) && /[A-Z]/.test(t) && /\d/.test(t);
   let snLine = -1; const cands = [];
   lines.forEach((line, i) => { if (/^S\s*[/.]?\s*N\b/.test(line)) snLine = i; line.split(/\s+/).forEach((t) => { if (valid(t)) cands.push({ t, i }); }); });
   if (!cands.length) return "";
   if (snLine >= 0) { const near = cands.filter((c) => c.i >= snLine).sort((a, b) => a.i - b.i)[0]; if (near) return near.t; }
   return cands[0].t;
 }
-async function ocrSerial(canvas) { const worker = await getOcrWorker(); const { data } = await worker.recognize(canvas); return pickSerial(data.text); }
-function decodeBarcodeFromCanvas(canvas) {
-  const ctx = canvas.getContext("2d", { willReadFrequently: true }); const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const lum = new Uint8ClampedArray(img.width * img.height);
-  for (let i = 0, p = 0; i < lum.length; i++, p += 4) lum[i] = (img.data[p] * 306 + img.data[p + 1] * 601 + img.data[p + 2] * 117) >> 10;
-  const zx = new MultiFormatReader(); const hints = new Map(); hints.set(DecodeHintType.TRY_HARDER, true); zx.setHints(hints);
-  try { const t = zx.decode(new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(lum, img.width, img.height)))).getText(); if (t) return t; } catch { /* none */ }
-  return jsQR(img.data, img.width, img.height, { inversionAttempts: "attemptBoth" })?.data || "";
+/** Uses word positions: the serial is the alphanumeric token printed just below the "S/N" label. */
+function pickSerialFromWords(words) {
+  const ws = (words || []).map((w) => ({ t: String(w.text || "").toUpperCase().replace(/[^A-Z0-9/:.-]/g, ""), b: w.bbox })).filter((w) => w.t && w.b);
+  const anchor = ws.find((w) => /^S[/.]?N[:.]?$/.test(w.t));
+  if (!anchor) return "";
+  const h = Math.max(1, anchor.b.y1 - anchor.b.y0);
+  const near = ws.filter((w) => /^[A-Z0-9]{12,24}$/.test(w.t) && /[A-Z]/.test(w.t) && /\d/.test(w.t) && w.b.y0 >= anchor.b.y0 - h && w.b.y0 <= anchor.b.y1 + h * 6 && w.b.x1 > anchor.b.x0)
+    .sort((a, b) => Math.abs(a.b.y0 - anchor.b.y1) - Math.abs(b.b.y0 - anchor.b.y1));
+  return near[0]?.t || "";
+}
+/** Grayscale + contrast stretch + resize to the given width (small text needs ~25px letter height for OCR). */
+function prepForOcr(canvas, targetW) {
+  const scale = targetW / canvas.width; const out = document.createElement("canvas"); out.width = Math.max(1, Math.round(canvas.width * scale)); out.height = Math.max(1, Math.round(canvas.height * scale));
+  const c = out.getContext("2d", { willReadFrequently: true }); c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high"; c.drawImage(canvas, 0, 0, out.width, out.height);
+  const img = c.getImageData(0, 0, out.width, out.height); const d = img.data; const hist = new Uint32Array(256);
+  for (let i = 0; i < d.length; i += 4) { const g = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0; d[i] = g; hist[g]++; }
+  const total = out.width * out.height; let lo = 0; let hi = 255; let acc = 0;
+  while (lo < 255 && acc + hist[lo] < total * 0.01) { acc += hist[lo]; lo++; }
+  acc = 0; while (hi > 0 && acc + hist[hi] < total * 0.01) { acc += hist[hi]; hi--; }
+  const range = Math.max(1, hi - lo);
+  for (let i = 0; i < d.length; i += 4) { const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / range)); d[i] = d[i + 1] = d[i + 2] = v; }
+  c.putImageData(img, 0, 0); return out;
+}
+function cropCanvas(canvas, fx, fy, fw, fh) {
+  const out = document.createElement("canvas"); out.width = Math.round(canvas.width * fw); out.height = Math.round(canvas.height * fh);
+  out.getContext("2d").drawImage(canvas, Math.round(canvas.width * fx), Math.round(canvas.height * fy), out.width, out.height, 0, 0, out.width, out.height); return out;
+}
+async function ocrSerial(canvas, modes = ["11"]) {
+  const worker = await getOcrWorker();
+  for (const mode of modes) {
+    await worker.setParameters({ tessedit_pageseg_mode: mode });
+    const { data } = await worker.recognize(canvas);
+    const code = pickSerialFromWords(data.words) || pickSerial(data.text);
+    if (code) return code;
+  }
+  return "";
+}
+function shrinkCanvas(canvas, maxWidth) {
+  const scale = Math.min(1, maxWidth / canvas.width); const out = document.createElement("canvas");
+  out.width = Math.round(canvas.width * scale); out.height = Math.round(canvas.height * scale); out.getContext("2d").drawImage(canvas, 0, 0, out.width, out.height); return out;
 }
 
 /** Continuous camera scanner: keeps running until the parent unmounts it (when all items are scanned). */
@@ -54,62 +119,53 @@ function BarcodeCamera({ onScan, onClose, progress }) {
   const [status, setStatus] = useState("Starting camera..."); const [error, setError] = useState("");
   scanRef.current = onScan;
   useEffect(() => {
-    let stream; let raf; let stopped = false; let lastText = ""; let lastAt = 0;
+    let stream; let stopped = false; let lastText = ""; let lastAt = 0; let lastHit = Date.now(); let ocrBusy = false; let ocrOff = false; let seen = {};
+    let READY = "Hold the S/N barcode and its number inside the white frame, filling most of it (about 10-20 cm away)";
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     async function start() {
       if (!navigator.mediaDevices?.getUserMedia) { setError("Camera is not available. Use HTTPS (or localhost) and a supported browser."); return; }
-      try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); }
+      try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }); }
       catch (err) { setError(err.name === "NotAllowedError" ? "Camera permission was denied. Allow camera access in your browser and try again." : err.name === "NotFoundError" ? "No camera found on this device." : `Unable to start camera: ${err.message}`); return; }
       const video = videoRef.current;
       if (stopped || !video) { stream.getTracks().forEach(t => t.stop()); return; }
       video.srcObject = stream; try { await video.play(); } catch { /* delayed playback */ }
+      try { const track = stream.getVideoTracks()[0]; const caps = track.getCapabilities?.() || {}; if (caps.focusMode?.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch { /* focus control not supported */ }
       if (stopped) return;
-      setStatus("Point the camera at the barcode of each item");
+      setStatus("Loading scanner…"); const engine = (await getWasmReader()) ? "fast scanner" : "backup scanner"; if (stopped) return; READY += ` [${engine}]`; setStatus(READY);
       const canvas = canvasRef.current; const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      let detector = null;
-      if (typeof window.BarcodeDetector !== "undefined") { try { detector = new window.BarcodeDetector({ formats: ["qr_code", "code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "itf", "codabar", "data_matrix"] }); } catch { detector = null; } }
-      const zx = new MultiFormatReader(); const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.CODE_93, BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.ITF, BarcodeFormat.CODABAR, BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX]);
-      hints.set(DecodeHintType.TRY_HARDER, true); zx.setHints(hints);
-      let last = 0; let detecting = false; let lastHit = Date.now(); let ocrBusy = false; let ocrOff = false; let pending = "";
-      const tick = async (time) => {
-        if (stopped) return; raf = requestAnimationFrame(tick);
-        if (detecting || time - last < 200 || video.readyState < 2 || !video.videoWidth) return;
-        last = time; detecting = true;
-        try {
-          let text = "";
-          if (detector) { try { const found = await detector.detect(video); text = found[0]?.rawValue || ""; } catch { /* fall back to jsQR */ } }
-          if (!text) {
-            const scale = Math.min(1, 1280 / video.videoWidth); canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height); const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            // ZXing reads 1D barcodes (EAN, Code 128, ...) in every browser; jsQR is the QR fallback.
-            const lum = new Uint8ClampedArray(img.width * img.height);
-            for (let i = 0, p = 0; i < lum.length; i++, p += 4) lum[i] = (img.data[p] * 306 + img.data[p + 1] * 601 + img.data[p + 2] * 117) >> 10;
-            try { text = zx.decode(new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(lum, img.width, img.height)))).getText() || ""; } catch { /* no barcode in this frame */ }
-            if (!text) text = jsQR(img.data, img.width, img.height, { inversionAttempts: "attemptBoth" })?.data || "";
-          }
-          const now = Date.now();
-          // Same code still in front of the camera: ignore until it has been away for 2.5 s.
-          if (text && !(text === lastText && now - lastAt < 2500)) { lastText = text; lastAt = now; lastHit = now; pending = ""; setStatus("Point the camera at the barcode of each item"); navigator.vibrate?.(60); scanRef.current(text); }
-          else if (text) { lastAt = now; lastHit = now; }
-          else if (!ocrOff && !ocrBusy && now - lastHit > 4000 && canvas.width) {
-            // Barcode not readable for a few seconds: read the printed serial number instead (must match twice in a row).
-            ocrBusy = true; setStatus("Barcode not readable — reading the printed serial number…");
-            const snap = document.createElement("canvas"); snap.width = canvas.width; snap.height = canvas.height; snap.getContext("2d").drawImage(canvas, 0, 0);
-            ocrSerial(snap).then((code) => {
-              if (stopped) return;
-              if (code && code === pending) { pending = ""; lastHit = Date.now(); setStatus("Point the camera at the barcode of each item"); navigator.vibrate?.(60); scanRef.current(code, "ocr"); }
-              else { pending = code || ""; lastHit = Date.now() - 2500; }
-            }).catch(() => { ocrOff = true; setStatus("Could not read the printed text (OCR unavailable). Type the number manually."); }).finally(() => { ocrBusy = false; });
-          }
-        } catch { /* unreadable frame */ } finally { detecting = false; }
-      };
-      raf = requestAnimationFrame(tick);
+      while (!stopped) {
+        const t0 = performance.now();
+        if (video.readyState >= 2 && video.videoWidth) {
+          try {
+            const scale = video.videoWidth < 1000 ? 2 : Math.min(1, 1600 / video.videoWidth); canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const text = await decodeCanvas(canvas); if (stopped) break;
+            const now = Date.now();
+            // Same code still in front of the camera: ignore until it has been away for 2.5 s.
+            if (text && !(text === lastText && now - lastAt < 2500)) { lastText = text; lastAt = now; lastHit = now; seen = {}; setStatus(READY); navigator.vibrate?.(60); scanRef.current(text); }
+            else if (text) { lastAt = now; lastHit = now; }
+            else if (!ocrOff && !ocrBusy && now - lastHit > 8000) {
+              // No barcode decoded for 8 s: read the printed serial number instead (must match twice in a row).
+              ocrBusy = true; setStatus("Barcode not readable — reading the printed serial number (the first time can take a moment)…");
+              const snap = prepForOcr(cropCanvas(canvas, 0.15, 0.15, 0.7, 0.7), 1800);
+              ocrSerial(snap).then((code) => {
+                if (stopped) return;
+                if (code) { seen[code] = (seen[code] || 0) + 1; }
+                if (code && seen[code] >= 2) { seen = {}; lastHit = Date.now(); setStatus(READY); navigator.vibrate?.(60); scanRef.current(code, "ocr"); }
+                else { lastHit = Date.now() - 6000; }
+              }).catch(() => { ocrOff = true; setStatus("Could not read the printed text. Type the number manually."); }).finally(() => { ocrBusy = false; });
+            }
+          } catch { /* unreadable frame */ }
+        }
+        await sleep(Math.max(40, 150 - (performance.now() - t0)));
+      }
     }
     start();
-    return () => { stopped = true; cancelAnimationFrame(raf); stream?.getTracks().forEach(t => t.stop()); };
+    return () => { stopped = true; stream?.getTracks().forEach(t => t.stop()); };
   }, []);
   return <div className="card scanner"><div className="scanner-view"><video ref={videoRef} playsInline muted /><div className="scanner-frame" /><canvas ref={canvasRef} hidden /></div><p><b>{progress}</b></p>{error ? <p className="alert error">{error}</p> : <p className="muted">{status}</p>}<button type="button" onClick={onClose}>Stop camera</button></div>;
 }
+
 export default function ReceiveStockPage() {
   const warehouses = useFetch(() => listWarehouses()); const categories = useFetch(listCategories); const suppliers = useFetch(() => listSuppliers()); const items = useFetch(() => listItems({limit:200}));
   const [mode,setMode]=useState("existing"); const [warehouseId,setWarehouseId]=useState(""); const [itemId,setItemId]=useState(""); const [item,setItem]=useState(EMPTY_ITEM); const [count,setCount]=useState("20"); const [started,setStarted]=useState(false); const [method,setMethod]=useState(""); const [codes,setCodes]=useState([]); const [scanMsg,setScanMsg]=useState(""); const [imgBusy,setImgBusy]=useState(false); const fileRef=useRef(null);
@@ -117,7 +173,7 @@ export default function ReceiveStockPage() {
   const itemRows=useMemo(()=>extractList(items.data),[items.data]); const categoryRows=useMemo(()=>extractList(categories.data),[categories.data]); const selected=itemRows.find(x=>String(x.id)===String(itemId)); const category=categoryRows.find(x=>String(x.id)===String(mode==="new"?item.category_id:selected?.category_id)); const schema=parseSchema(category?.field_schema);
   const totalPieces=started?codes.length:0; const filled=codes.filter(c=>normCode(c)).length; const allFilled=started&&codes.length>0&&filled===codes.length;
   function start(){setError("");const n=Number(count);if(!Number.isSafeInteger(n)||n<1)return setError("Enter a whole number of items (1 or more).");if(n>MAX_ITEMS)return setError(`You can receive at most ${MAX_ITEMS} items at a time.`);setCodes(Array(n).fill(""));setMethod("");setScanMsg("");setStarted(true);}
-  async function scanImageFile(file){if(!file)return;setImgBusy(true);setScanMsg("Reading image…");let url="";try{url=URL.createObjectURL(file);const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error("Could not open this image."));im.src=url;});const scale=Math.min(1,1600/img.naturalWidth);const canvas=document.createElement("canvas");canvas.width=Math.round(img.naturalWidth*scale);canvas.height=Math.round(img.naturalHeight*scale);canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);let code=decodeBarcodeFromCanvas(canvas);if(code){handleScan(code);}else{setScanMsg("Barcode not readable — reading the printed serial number…");code=await ocrSerial(canvas);if(code)handleScan(code,"ocr");else setScanMsg("Could not find a barcode or serial number in this image. Try a clearer photo or type it manually.");}}catch(err){setScanMsg(err.message||"Could not read this image.");}finally{if(url)URL.revokeObjectURL(url);setImgBusy(false);}}
+  async function scanImageFile(file){if(!file)return;setImgBusy(true);setScanMsg("Reading image…");let url="";try{url=URL.createObjectURL(file);const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error("Could not open this image."));im.src=url;});const scale=Math.min(1,3000/img.naturalWidth);const canvas=document.createElement("canvas");canvas.width=Math.round(img.naturalWidth*scale);canvas.height=Math.round(img.naturalHeight*scale);canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);let code=await decodeCanvas(canvas);if(!code&&canvas.width<1800){code=await decodeCanvas(prepForOcr(canvas,canvas.width*2));}if(code){handleScan(code);}else{setScanMsg("Barcode too small or blurry — reading the printed serial number…");code=await ocrSerial(prepForOcr(canvas,2200),["11","6"]);if(!code)code=await ocrSerial(prepForOcr(canvas,3000),["11"]);if(code)handleScan(code,"ocr");else setScanMsg("Could not find a barcode or serial number in this image. Use a closer, sharper photo of the S/N label or type it manually.");}}catch(err){setScanMsg(err.message||"Could not read this image.");}finally{if(url)URL.revokeObjectURL(url);setImgBusy(false);}}
   function resetCount(){setStarted(false);setMethod("");setCodes([]);setScanMsg("");}
   function setCode(i,value){setCodes(old=>old.map((c,j)=>i===j?value:c));}
   function handleScan(raw,source){const code=normCode(raw);if(!code)return;if(/[\s/?#]/.test(code)||code.length>40){setScanMsg(`Ignored "${code.slice(0,40)}": not a valid barcode.`);return;}setCodes(old=>{if(old.some(c=>normCode(c)===code)){setScanMsg(`${code} is already scanned.`);return old;}const idx=old.findIndex(c=>!normCode(c));if(idx===-1)return old;setScanMsg(source==="ocr"?`Filled ${code} from the printed serial number. Please verify it.`:`Scanned ${code}`);const next=[...old];next[idx]=code;return next;});}
