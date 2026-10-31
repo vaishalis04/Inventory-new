@@ -118,6 +118,27 @@ function BarcodeCamera({ onScan, onClose, progress }) {
   const videoRef = useRef(null); const canvasRef = useRef(null); const scanRef = useRef(onScan);
   const [status, setStatus] = useState("Starting camera..."); const [error, setError] = useState("");
   scanRef.current = onScan;
+  const busyRef = useRef(false); const [busy, setBusy] = useState(false);
+  /** "Click & scan": take a full-resolution picture of the current view, read the barcode, else the printed serial number. */
+  async function capture() {
+    const video = videoRef.current; if (!video || !video.videoWidth || busyRef.current) return;
+    busyRef.current = true; setBusy(true); setStatus("Taking picture…");
+    try {
+      const scale = Math.min(1, 3000 / video.videoWidth); const shot = document.createElement("canvas");
+      shot.width = Math.round(video.videoWidth * scale); shot.height = Math.round(video.videoHeight * scale);
+      shot.getContext("2d").drawImage(video, 0, 0, shot.width, shot.height);
+      setStatus("Reading barcode…");
+      let code = await decodeCanvas(shot);
+      if (!code && shot.width < 1800) code = await decodeCanvas(prepForOcr(shot, shot.width * 2));
+      if (code) { navigator.vibrate?.(60); scanRef.current(code); setStatus("Done. Point at the next item and click again."); return; }
+      setStatus("Barcode not readable — reading the printed serial number…");
+      code = await ocrSerial(prepForOcr(cropCanvas(shot, 0.15, 0.15, 0.7, 0.7), 1800), ["11"]);
+      if (!code) code = await ocrSerial(prepForOcr(shot, 2200), ["11", "6"]);
+      if (code) { navigator.vibrate?.(60); scanRef.current(code, "ocr"); setStatus("Done. Point at the next item and click again."); }
+      else setStatus("Nothing readable in this picture. Move closer, hold steady with the S/N inside the frame, and click again.");
+    } catch { setStatus("Could not read this picture. Try again or type the number manually."); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
   useEffect(() => {
     let stream; let stopped = false; let lastText = ""; let lastAt = 0; let lastHit = Date.now(); let ocrBusy = false; let ocrOff = false; let seen = {};
     let READY = "Hold the S/N barcode and its number inside the white frame, filling most of it (about 10-20 cm away)";
@@ -134,6 +155,7 @@ function BarcodeCamera({ onScan, onClose, progress }) {
       setStatus("Loading scanner…"); const engine = (await getWasmReader()) ? "fast scanner" : "backup scanner"; if (stopped) return; READY += ` [${engine}]`; setStatus(READY);
       const canvas = canvasRef.current; const ctx = canvas.getContext("2d", { willReadFrequently: true });
       while (!stopped) {
+        if (busyRef.current) { await sleep(150); continue; }
         const t0 = performance.now();
         if (video.readyState >= 2 && video.videoWidth) {
           try {
@@ -163,7 +185,7 @@ function BarcodeCamera({ onScan, onClose, progress }) {
     start();
     return () => { stopped = true; stream?.getTracks().forEach(t => t.stop()); };
   }, []);
-  return <div className="card scanner"><div className="scanner-view"><video ref={videoRef} playsInline muted /><div className="scanner-frame" /><canvas ref={canvasRef} hidden /></div><p><b>{progress}</b></p>{error ? <p className="alert error">{error}</p> : <p className="muted">{status}</p>}<button type="button" onClick={onClose}>Stop camera</button></div>;
+  return <div className="card scanner"><div className="scanner-view"><video ref={videoRef} playsInline muted /><div className="scanner-frame" /><canvas ref={canvasRef} hidden /></div><p><b>{progress}</b></p>{error ? <p className="alert error">{error}</p> : <p className="muted">{status}</p>}<div className="tabs"><button type="button" className="primary" onClick={capture} disabled={busy}>{busy ? "Reading…" : "Click & scan"}</button><button type="button" onClick={onClose}>Stop camera</button></div></div>;
 }
 
 export default function ReceiveStockPage() {
