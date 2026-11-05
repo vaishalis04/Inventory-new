@@ -8,9 +8,91 @@ import {
 import { extractList } from "../api/http";
 import useFetch from "../hooks/useFetch";
 import FormField from "../components/FormField";
-import DataView from "../components/DataView";
+import DataTable from "../components/DataTable";
+import { formatValue, pretty } from "../utils/format";
+import { loadLookups, resolveName, useLookups } from "../utils/lookup";
 import { ErrorMessage, Success } from "../components/LoadingState";
 import CameraScanner from "../components/ScanCamera";
+
+const has = (v) => v !== null && v !== undefined && v !== "";
+
+/** One block with only the relevant facts (no repeated item / unit / warehouse sections). */
+function ScanDetails({ result }) {
+  useLookups();
+  const item = result.item || {};
+  const fields = [];
+  const add = (label, value) => { if (has(value) && !fields.some(([l]) => l === label)) fields.push([label, value]); };
+  const category = item.Category?.name || resolveName("category_id", item.category_id);
+
+  if (result.type === "UNIT") {
+    const unit = result.unit || {};
+    add("Barcode / serial", unit.code);
+    add("Status", has(unit.status) ? formatValue(unit.status, "status") : null);
+    add("Item", item.name); add("SKU", item.sku); add("Brand", item.brand); add("Model", item.model); add("Category", category);
+    add("Warehouse", result.warehouse?.name || resolveName("warehouse_id", unit.warehouse_id));
+    add("Box", result.box?.code);
+    add("Received at", has(unit.received_at) ? formatValue(unit.received_at, "received_at") : null);
+    add("Note", unit.note);
+  } else if (result.type === "BOX") {
+    const box = result.box || result;
+    add("Box code", box.code);
+    add("Quantity", has(box.quantity ?? result.current_quantity) ? `${box.quantity ?? result.current_quantity}${has(box.initial_quantity ?? result.initial_quantity) ? ` of ${box.initial_quantity ?? result.initial_quantity}` : ""}` : null);
+    add("Status", has(box.status) ? formatValue(box.status, "status") : null);
+    add("Item", item.name); add("SKU", item.sku); add("Brand", item.brand); add("Model", item.model); add("Category", category);
+    add("Warehouse", result.warehouse?.name || resolveName("warehouse_id", box.warehouse_id));
+    add("Location", box.location); add("Batch no", box.batch_no);
+    add("Supplier", result.supplier?.name);
+    add("Received at", has(box.received_at) ? formatValue(box.received_at, "received_at") : null);
+  } else {
+    add("Item", item.name); add("SKU", item.sku); add("Brand", item.brand); add("Model", item.model); add("Category", category);
+    add("Unit", item.unit); add("Min stock", item.min_stock);
+    add("Item QR code", item.qr_code);
+    add("Total quantity", result.total_quantity);
+  }
+  if (item.custom_fields && typeof item.custom_fields === "object") {
+    Object.entries(item.custom_fields).forEach(([key, value]) => {
+      if (value !== null && typeof value !== "object" && has(value)) add(pretty(key), String(value));
+    });
+  }
+
+  const section = (title, node) => (<section className="sub dark-sub"><h3>{title}</h3>{node}</section>);
+  const stock = Array.isArray(result.stock) ? result.stock : [];
+  const boxes = Array.isArray(result.boxes) ? result.boxes : [];
+  const units = Array.isArray(result.units) ? result.units : [];
+  const moves = Array.isArray(result.recent_movements) ? result.recent_movements : [];
+
+  return (
+    <div className="dark-data-view">
+      <dl className="kv dark-kv">
+        {fields.map(([label, value]) => (<div key={label}><dt>{label}</dt><dd>{value}</dd></div>))}
+      </dl>
+
+      {stock.length > 0 && section("Stock by warehouse", <DataTable rows={stock} columns={[
+        { key: "warehouse", label: "Warehouse", render: (r) => r.Warehouse?.name || resolveName("warehouse_id", r.warehouse_id) || "—" },
+        { key: "quantity", label: "Quantity", render: (r) => formatValue(r.quantity, "quantity") },
+      ]} />)}
+      {boxes.length > 0 && section("Active boxes", <DataTable rows={boxes} columns={[
+        { key: "code", label: "Box code", render: (r) => r.code },
+        { key: "warehouse", label: "Warehouse", render: (r) => resolveName("warehouse_id", r.warehouse_id) || "—" },
+        { key: "quantity", label: "Quantity", render: (r) => `${r.quantity}${has(r.initial_quantity) ? ` of ${r.initial_quantity}` : ""}` },
+        { key: "location", label: "Location", render: (r) => formatValue(r.location, "location") },
+      ]} />)}
+      {units.length > 0 && section("Individual items in this box", <DataTable rows={units} columns={[
+        { key: "code", label: "Code", render: (r) => r.code },
+        { key: "status", label: "Status", render: (r) => formatValue(r.status, "status") },
+        { key: "received_at", label: "Received at", render: (r) => formatValue(r.received_at, "received_at") },
+      ]} />)}
+      {moves.length > 0 && section("Recent movements", <DataTable rows={moves} columns={[
+        { key: "when", label: "Date & time", render: (m) => formatValue(m.createdAt ?? m.created_at, "createdAt") },
+        { key: "type", label: "Type", render: (m) => formatValue(m.type, "type") },
+        { key: "change", label: "In / Out", render: (m) => (Number(m.change) > 0 ? `+${m.change}` : String(m.change)) },
+        { key: "balance_after", label: "Balance after", render: (m) => formatValue(m.balance_after, "balance_after") },
+        { key: "user", label: "By", render: (m) => m.User?.name || "—" },
+        { key: "note", label: "Note", render: (m) => formatValue(m.note, "note") },
+      ]} />)}
+    </div>
+  );
+}
 
 export default function ScanPage() {
   const [code, setCode] = useState("");
@@ -147,6 +229,14 @@ export default function ScanPage() {
     }
   }
 
+  // Refresh: reload names/warehouses and re-read the currently looked-up code (new quantities, status, history).
+  async function refreshPage() {
+    setNotice("");
+    await loadLookups(true);
+    warehouses.reload();
+    if (scanned) await lookup(scanned);
+  }
+
   const isBox = result?.type === "BOX";
   const isItem = result?.type === "ITEM";
   const isUnit = result?.type === "UNIT";
@@ -160,7 +250,21 @@ export default function ScanPage() {
 
   return (
     <>
-      <h1>Scan</h1>
+      <style>{`
+        .stock-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
+        .stock-head h1 { margin: 0; }
+        .stock-refresh { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; padding: 0 17px; border: 1px solid var(--border, #e8ecf2); border-radius: 10px; background: var(--surface, #ffffff); color: var(--text, #172033); font-size: 13px; font-weight: 700; cursor: pointer; transition: border-color .2s, transform .2s; }
+        .stock-refresh:hover { border-color: var(--primary, #4f46e5); transform: translateY(-1px); }
+        .stock-refresh:disabled { cursor: wait; opacity: .65; }
+        .stock-refresh span { display: inline-block; font-size: 18px; line-height: 1; }
+      `}</style>
+      <div className="stock-head">
+        <h1>Scan</h1>
+        <button className="stock-refresh" type="button" onClick={refreshPage} disabled={busy} aria-label="Refresh scan page">
+          <span aria-hidden="true">↻</span>
+          Refresh data
+        </button>
+      </div>
 
       <div className="toolbar">
         <button
@@ -218,46 +322,7 @@ export default function ScanPage() {
                 scanned}
             </h2>
 
-            {isBox && (
-              <p>
-                Quantity:{" "}
-                <b>
-                  {result.current_quantity ??
-                    result.quantity}
-                </b>
-
-                {result.initial_quantity != null && (
-                  <> of {result.initial_quantity}</>
-                )}
-
-                {result.status && (
-                  <>
-                    {" "}· Status: <b>{result.status}</b>
-                  </>
-                )}
-
-                {result.location && (
-                  <>
-                    {" "}· Location:{" "}
-                    <b>{result.location}</b>
-                  </>
-                )}
-              </p>
-            )}
-
-            {isUnit && <p>Individual item code: <b>{result.unit?.code}</b> · Status: <b>{result.unit?.status}</b></p>}
-
-            {isItem && result.total_quantity != null && (
-              <p>
-                Total quantity:{" "}
-                <b>{result.total_quantity}</b>
-              </p>
-            )}
-
-            <DataView
-              data={result}
-              skip={["type"]}
-            />
+            <ScanDetails result={result} />
           </div>
 
           <form

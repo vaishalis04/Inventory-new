@@ -5,6 +5,8 @@ import { extractList } from "../api/http";
 import { useAuth } from "../context/AuthContext";
 import { loadLookups } from "../utils/lookup";
 import useFetch from "../hooks/useFetch";
+import Pager from "../components/Pager";
+import RefreshButton from "../components/RefreshButton";
 import { DataTable } from "../components/DataTable";
 import { ErrorMessage, Loading } from "../components/LoadingState";
 import Modal from "../components/Modal";
@@ -19,6 +21,7 @@ export default function ItemsPage() {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(LIMIT);
   const [qr, setQr] = useState(null);
   const [qrError, setQrError] = useState("");
 
@@ -28,8 +31,8 @@ export default function ItemsPage() {
   }, [query]);
 
   const { data, loading, error, reload } = useFetch(
-    () => listItems({ q: debounced, page, limit: LIMIT }),
-    [debounced, page]
+    () => listItems({ q: debounced, page, limit }),
+    [debounced, page, limit]
   );
   const items = extractList(data);
 
@@ -95,6 +98,7 @@ export default function ItemsPage() {
       <div className="toolbar">
         <h1 style={{ margin: 0, flex: 1 }}>Items</h1>
         <input style={{ maxWidth: 280 }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, model or brand" />
+        <RefreshButton onClick={() => { reload(); popular.reload(); loadLookups(true); }} busy={loading} />
         <Link to="/items/new"><button className="primary">+ New item</button></Link>
       </div>
       {!debounced && popularItems.length > 0 && (
@@ -118,11 +122,7 @@ export default function ItemsPage() {
       )}
       <ErrorMessage error={error || deleteError} onRetry={reload} />
       {loading ? <Loading /> : <DataTable columns={columns} rows={items} />}
-      <div className="pager">
-        <button disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
-        <span className="muted">Page {page}</span>
-        <button disabled={items.length < LIMIT} onClick={() => setPage(page + 1)}>Next</button>
-      </div>
+      <Pager page={page} limit={limit} total={data?.meta?.total ?? items.length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
       {qr && (
         <Modal title={`QR — ${qr.item.name}`} onClose={() => setQr(null)}>
           <ErrorMessage error={qrError} />

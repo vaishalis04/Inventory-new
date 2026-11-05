@@ -3,10 +3,14 @@ import { listPrintJobs, openPrintSheet } from "../api/inventory.api";
 import { extractList } from "../api/http";
 import useFetch from "../hooks/useFetch";
 import { AutoTable } from "../components/DataTable";
+import Pager from "../components/Pager";
+import RefreshButton from "../components/RefreshButton";
 import { ErrorMessage, Loading } from "../components/LoadingState";
 
 export default function PrintJobsPage() {
-  const { data, loading, error, reload } = useFetch(listPrintJobs);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const { data, loading, error, reload } = useFetch(() => listPrintJobs({ page, limit }), [page, limit]);
   const [err, setErr] = useState("");
   const open = async (job) => {
     setErr("");
@@ -16,12 +20,13 @@ export default function PrintJobsPage() {
     <>
       <div className="toolbar">
         <h1 style={{ margin: 0, flex: 1 }}>Print jobs</h1>
-        <button onClick={reload}>Refresh</button>
+        <RefreshButton onClick={reload} busy={loading} />
       </div>
       <ErrorMessage error={error || err} onRetry={reload} />
       {loading ? <Loading /> : (
         <AutoTable rows={extractList(data)} actions={(job) => <button className="link" onClick={() => open(job)}>Open sheet</button>} />
       )}
+      <Pager page={page} limit={limit} total={data?.meta?.total ?? extractList(data).length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
     </>
   );
 }

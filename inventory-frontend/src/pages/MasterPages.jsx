@@ -9,6 +9,9 @@ import {
 import { extractList } from "../api/http";
 import useFetch from "../hooks/useFetch";
 import { AutoTable } from "../components/DataTable";
+import Pager from "../components/Pager";
+import RefreshButton from "../components/RefreshButton";
+import { pageSlice } from "../utils/paging";
 import FormField from "../components/FormField";
 import Modal from "../components/Modal";
 import { ErrorMessage, Loading } from "../components/LoadingState";
@@ -19,7 +22,9 @@ import { ErrorMessage, Loading } from "../components/LoadingState";
  * field: { name, label, type?, required?, json? (parse textarea as JSON), options? }
  */
 function MasterPage({ title, list, create, update, remove, fields, removeNote }) {
-  const { data, loading, error, reload } = useFetch(list);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const { data, loading, error, reload } = useFetch(() => list({ page, limit }), [page, limit]);
   const [editing, setEditing] = useState(null); // null | {} (new) | row
   const [form, setForm] = useState({});
   const [formError, setFormError] = useState("");
@@ -81,10 +86,12 @@ function MasterPage({ title, list, create, update, remove, fields, removeNote })
     <>
       <div className="toolbar">
         <h1 style={{ margin: 0, flex: 1 }}>{title}</h1>
+        <RefreshButton onClick={reload} busy={loading} />
         <button className="primary" onClick={() => openForm({})}>+ New</button>
       </div>
       <ErrorMessage error={error} onRetry={reload} />
       {loading ? <Loading /> : <AutoTable rows={extractList(data)} actions={actions || undefined} />}
+      <Pager page={page} limit={limit} total={data?.meta?.total ?? extractList(data).length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
       {editing && (
         <Modal title={editing.id ? `Edit ${title}` : `New ${title}`} onClose={() => setEditing(null)}>
           <ErrorMessage error={formError} />
@@ -114,7 +121,7 @@ async function removeWarehouse(id) {
 }
 
 export const WarehousesPage = () => (
-  <MasterPage title="Warehouses" list={() => listWarehouses()} create={createWarehouse} update={updateWarehouse} remove={removeWarehouse}
+  <MasterPage title="Warehouses" list={(p) => listWarehouses(p)} create={createWarehouse} update={updateWarehouse} remove={removeWarehouse}
     removeNote="If it holds stock, you will be asked to confirm deleting that stock and its movements too."
     fields={[
       { name: "name", label: "Name", required: true },
@@ -130,6 +137,8 @@ const toSchemaList = (schema) => {
 };
 
 export function CategoriesPage() {
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const { data, loading, error, reload } = useFetch(listCategories);
   const [editing, setEditing] = useState(null); // null | {} (new) | category row
   const [name, setName] = useState("");
@@ -183,18 +192,20 @@ export function CategoriesPage() {
     <>
       <div className="toolbar">
         <h1 style={{ margin: 0, flex: 1 }}>Categories</h1>
+        <RefreshButton onClick={reload} busy={loading} />
         <button className="primary" onClick={() => open({})}>+ New category</button>
       </div>
       <p className="muted">Define extra item fields using a visual builder. Users will see ordinary inputs on item forms.</p>
       <ErrorMessage error={error} onRetry={reload} />
       {loading ? <Loading /> : (
-        <AutoTable rows={extractList(data)} actions={(row) => (
+        <AutoTable rows={pageSlice(extractList(data), page, limit)} actions={(row) => (
           <div className="row-actions">
             <button className="link" onClick={() => open(row)}>Edit</button>
             <button className="link danger" onClick={() => remove(row)}>Delete</button>
           </div>
         )} />
       )}
+      <Pager page={page} limit={limit} total={extractList(data).length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
       {editing && (
         <Modal title={isEdit ? `Edit category — ${editing.name}` : "New category"} onClose={() => setEditing(null)}>
           <ErrorMessage error={formError} />
@@ -228,7 +239,7 @@ export function CategoriesPage() {
 }
 
 export const SuppliersPage = () => (
-  <MasterPage title="Suppliers" list={() => listSuppliers()} create={createSupplier} update={updateSupplier} remove={deleteSupplier}
+  <MasterPage title="Suppliers" list={(p) => listSuppliers(p)} create={createSupplier} update={updateSupplier} remove={deleteSupplier}
     removeNote="Boxes received from this supplier are kept; they just lose the supplier link."
     fields={[
       { name: "name", label: "Name", required: true },

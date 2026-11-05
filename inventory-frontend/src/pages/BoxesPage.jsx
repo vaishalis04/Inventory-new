@@ -4,6 +4,8 @@ import { extractList } from "../api/http";
 import { useAuth } from "../context/AuthContext";
 import { loadLookups } from "../utils/lookup";
 import useFetch from "../hooks/useFetch";
+import Pager from "../components/Pager";
+import RefreshButton from "../components/RefreshButton";
 import { AutoTable } from "../components/DataTable";
 import FormField from "../components/FormField";
 import Modal from "../components/Modal";
@@ -17,7 +19,9 @@ export default function BoxesPage() {
   const [filters, setFilters] = useState({ warehouse_id: "", status: "" });
   const warehouses = useFetch(() => listWarehouses());
   const printers = useFetch(listPrinters);
-  const { data, loading, error, reload } = useFetch(() => listBoxes(filters), [filters.warehouse_id, filters.status]);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const { data, loading, error, reload } = useFetch(() => listBoxes({ ...filters, page, limit }), [filters.warehouse_id, filters.status, page, limit]);
   const [modal, setModal] = useState(null); // {type:'qr'|'edit'|'print', box, data}
   const [msg, setMsg] = useState({ error: "", ok: "" });
   const [form, setForm] = useState({});
@@ -77,15 +81,19 @@ export default function BoxesPage() {
 
   return (
     <>
-      <h1>Boxes</h1>
+      <div className="rf-head">
+        <h1>Boxes</h1>
+        <RefreshButton onClick={() => { reload(); warehouses.reload(); suppliers.reload(); printers.reload(); loadLookups(true); }} busy={loading} />
+      </div>
       <div className="toolbar">
-        <FormField label="Warehouse" value={filters.warehouse_id} onChange={(e) => setFilters({ ...filters, warehouse_id: e.target.value })}
+        <FormField label="Warehouse" value={filters.warehouse_id} onChange={(e) => { setFilters({ ...filters, warehouse_id: e.target.value }); setPage(1); }}
           options={extractList(warehouses.data).map((w) => ({ value: w.id, label: w.name }))} />
-        <FormField label="Status" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+        <FormField label="Status" value={filters.status} onChange={(e) => { setFilters({ ...filters, status: e.target.value }); setPage(1); }}
           options={["ACTIVE", "EMPTY", "ARCHIVED"].map((s) => ({ value: s, label: s }))} />
       </div>
       <ErrorMessage error={!modal ? error : ""} onRetry={reload} />
       {loading ? <Loading /> : <AutoTable rows={extractList(data)} actions={actions} rowKey={(b) => codeOf(b) ?? b.id} />}
+      <Pager page={page} limit={limit} total={data?.meta?.total ?? extractList(data).length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
 
       {modal && (
         <Modal title={`Box ${codeOf(modal.box)}`} onClose={() => setModal(null)}>

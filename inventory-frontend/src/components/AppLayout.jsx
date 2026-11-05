@@ -4,22 +4,23 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { loadLookups } from "../utils/lookup";
 import { useAuth } from "../context/AuthContext";
 
+// Sidebar entries that are commented out are hidden from the menu (their routes still exist). Remove the "//" to show one again.
 const NAV = [
   ["/dashboard", "Dashboard", "▦"],
   ["/items", "Items", "◈"],
   ["/receive", "Receive Stock", "↓"],
   ["/scan", "Scan", "⌗"],
-  ["/boxes", "Boxes", "▣"],
+  // ["/boxes", "Boxes", "▣"],
   ["/stock", "Stock", "▤"],
   ["/movements", "Movements", "⇄"],
-  ["/low-stock", "Low Stock", "!"],
-  ["/transfers", "Transfers", "↗", ["admin", "manager"]],
-  ["/stock-count", "Stock Count", "☷", ["admin", "manager"]],
+  // ["/low-stock", "Low Stock", "!"],
+  // ["/transfers", "Transfers", "↗", ["admin", "manager"]],
+  // ["/stock-count", "Stock Count", "☷", ["admin", "manager"]],
   ["/print-jobs", "Print Jobs", "▧"],
-  ["/warehouses", "Warehouses", "⌂"],
+  // ["/warehouses", "Warehouses", "⌂"],
   ["/categories", "Categories", "⊞"],
-  ["/suppliers", "Suppliers", "♧"],
-  ["/printers", "Printers", "▤"],
+  // ["/suppliers", "Suppliers", "♧"],
+  // ["/printers", "Printers", "▤"],
   ["/users", "Users", "♙", ["admin"]],
 ];
 

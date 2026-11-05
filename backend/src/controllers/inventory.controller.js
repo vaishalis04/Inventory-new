@@ -56,9 +56,9 @@ exports.movements = asyncHandler(async (req, res) => {
     where.box_id = box ? box.id : -1;
   }
   if (q.from || q.to) {
-    where.created_at = {};
-    if (q.from) where.created_at[Op.gte] = new Date(q.from);
-    if (q.to) where.created_at[Op.lte] = new Date(q.to);
+    where.createdAt = {};
+    if (q.from) where.createdAt[Op.gte] = new Date(q.from);
+    if (q.to) where.createdAt[Op.lte] = new Date(q.to);
   }
   const { rows, count } = await db.StockMovement.findAndCountAll({
     where, limit, offset, order: [['id', 'DESC']],

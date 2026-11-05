@@ -2,6 +2,7 @@ import { useState } from "react";
 import { listItems, listWarehouses, transferStock } from "../api/inventory.api";
 import { extractList } from "../api/http";
 import useFetch from "../hooks/useFetch";
+import RefreshButton from "../components/RefreshButton";
 import FormField from "../components/FormField";
 import { ErrorMessage, Success } from "../components/LoadingState";
 
@@ -41,7 +42,10 @@ export default function TransfersPage() {
 
   return (
     <>
-      <h1>Transfer stock</h1>
+      <div className="rf-head">
+        <h1>Transfer stock</h1>
+        <RefreshButton onClick={() => { warehouses.reload(); items.reload(); }} busy={warehouses.loading || items.loading} />
+      </div>
       <ErrorMessage error={error} />
       <Success>{ok}</Success>
       <form className="card" onSubmit={handleSubmit}>

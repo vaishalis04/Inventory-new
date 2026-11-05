@@ -237,7 +237,7 @@ export const updateSupplier = (id, payload) =>
 export const deleteSupplier = (id) => del(`/suppliers/${id}`);
 
 // Printers
-export const listPrinters = () => get("/printers");
+export const listPrinters = (params) => get(`/printers${qs(params)}`);
 
 export const createPrinter = (payload) =>
   post("/printers", payload);
@@ -248,7 +248,7 @@ export const updatePrinter = (id, payload) =>
 export const deletePrinter = (id) => del(`/printers/${id}`);
 
 // Print jobs
-export const listPrintJobs = () => get("/print/jobs");
+export const listPrintJobs = (params) => get(`/print/jobs${qs(params)}`);
 
 // Users
 export const listUsers = (params) =>

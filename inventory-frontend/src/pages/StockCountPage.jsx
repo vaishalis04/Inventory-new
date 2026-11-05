@@ -2,6 +2,7 @@ import { useState } from "react";
 import { countStock, listItems, listWarehouses } from "../api/inventory.api";
 import { extractList } from "../api/http";
 import useFetch from "../hooks/useFetch";
+import RefreshButton from "../components/RefreshButton";
 import FormField from "../components/FormField";
 import { ErrorMessage, Success } from "../components/LoadingState";
 import DataView from "../components/DataView";
@@ -34,7 +35,10 @@ export default function StockCountPage() {
 
   return (
     <>
-      <h1>Stock count</h1>
+      <div className="rf-head">
+        <h1>Stock count</h1>
+        <RefreshButton onClick={() => { warehouses.reload(); items.reload(); }} busy={warehouses.loading || items.loading} />
+      </div>
       <ErrorMessage error={error} />
       {result && (
         <>

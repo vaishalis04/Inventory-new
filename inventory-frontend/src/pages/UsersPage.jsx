@@ -1,4 +1,7 @@
 import { useState } from "react";
+import Pager from "../components/Pager";
+import RefreshButton from "../components/RefreshButton";
+import { pageSlice } from "../utils/paging";
 import { loadLookups } from "../utils/lookup";
 import { createUser, deleteUser, listUsers, updateUser } from "../api/inventory.api";
 import { extractList } from "../api/http";
@@ -20,6 +23,8 @@ const errText = (err) => (err.details ? `${err.message}: ${JSON.stringify(err.de
 
 export default function UsersPage() {
   const { user: me } = useAuth();
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const { data, loading, error, reload } = useFetch(listUsers);
   const [editing, setEditing] = useState(null); // null | {} (new) | user row
   const [form, setForm] = useState(EMPTY);
@@ -104,12 +109,14 @@ export default function UsersPage() {
     <>
       <div className="toolbar">
         <h1 style={{ margin: 0, flex: 1 }}>Users</h1>
+        <RefreshButton onClick={reload} busy={loading} />
         <button className="primary" onClick={openNew}>+ New user</button>
       </div>
       <ErrorMessage error={error || pageError} onRetry={reload} />
       {loading ? <Loading /> : (
-        <AutoTable rows={extractList(data)} hide={["password", "password_hash"]} actions={actions} />
+        <AutoTable rows={pageSlice(extractList(data), page, limit)} hide={["password", "password_hash"]} actions={actions} />
       )}
+      <Pager page={page} limit={limit} total={extractList(data).length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
       {editing && (
         <Modal title={isEdit ? `Edit user — ${editing.name}` : "New user"} onClose={() => setEditing(null)}>
           <ErrorMessage error={formError} />
