@@ -1,0 +1,212 @@
+/* ==========================================================================
+   LIGHT THEME — shared components (buttons, forms, tables, cards, modals…)
+   Used by every page, so Items, Receive Stock and the pages we redesign next
+   all share one look. Loaded after theme-light.css.
+   ========================================================================== */
+
+/* ---- Buttons (low specificity so page-specific buttons keep their own look) */
+:where(.dark-shell) button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.2;
+}
+:where(.dark-shell) button:hover:not(:disabled) { border-color: var(--primary); background: #fbfaff; }
+:where(.dark-shell) button.primary { border-color: var(--primary); background: var(--primary); color: #fff; }
+:where(.dark-shell) button.primary:hover:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); }
+:where(.dark-shell) button.danger { color: var(--danger); }
+:where(.dark-shell) button.link { min-height: 0; padding: 0 6px; border: 0; background: none; color: var(--primary); font-weight: 650; }
+:where(.dark-shell) button.link:hover:not(:disabled) { background: none; text-decoration: underline; }
+:where(.dark-shell) button.link.danger { color: var(--danger); }
+.dark-shell .row-actions { align-items: center; }
+
+/* ---- Segmented tabs (Existing item / Create item, Open camera / Enter manually) */
+.dark-shell .tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #f3f0e8;
+}
+.dark-shell .tabs button { min-height: 40px; border-color: transparent; background: transparent; }
+.dark-shell .tabs button:hover:not(:disabled) { background: #ffffff99; border-color: transparent; }
+.dark-shell .tabs button.active { background: #fff; border-color: #e1dbf3; color: var(--primary); box-shadow: 0 1px 3px rgba(30, 27, 46, .1); }
+.dark-shell .tabs button.primary { background: var(--primary); color: #fff; }
+
+/* ---- Page header rows and toolbars */
+.dark-shell .toolbar { gap: 12px; margin-bottom: 20px; align-items: center; }
+.dark-shell .toolbar .field { margin: 0; }
+.dark-shell .toolbar input { max-width: 320px; }
+
+/* ---- Cards, panels, alerts */
+.dark-shell .content .card,
+.dark-shell .content .dashboard-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.dark-shell .content .card { padding: 20px; margin-bottom: 18px; }
+.dark-shell .content .card .card { box-shadow: none; background: #fbfaf7; }
+.dark-shell .content .card h2,
+.dark-shell .content .card h3 { color: var(--text); }
+.dark-shell .content .alert { border-radius: 12px; padding: 12px 16px; font-weight: 550; }
+.dark-shell .alert.error { background: var(--danger-soft); border: 1px solid #f3c1c1; color: var(--danger); }
+.dark-shell .alert.success { background: var(--success-soft); border: 1px solid #b8e0c9; color: var(--success); }
+.dark-shell .muted { color: var(--muted); }
+.dark-shell .content .badge,
+.dark-shell .dark-badge { border: 1px solid #ddd3f8; border-radius: 99px; background: var(--primary-soft); color: var(--primary); font-weight: 650; }
+.dark-shell .content .badge.st-active,
+.dark-shell .content .badge.st-in,
+.dark-shell .content .badge.ok { background: var(--success-soft); border-color: #b8e0c9; color: var(--success); }
+.dark-shell .content .badge.st-out,
+.dark-shell .content .badge.st-empty,
+.dark-shell .content .badge.st-inactive { background: var(--danger-soft); border-color: #f3c1c1; color: var(--danger); }
+.dark-shell .content .badge.off { background: #f3f0e8; border-color: var(--border); color: var(--muted); }
+
+/* ---- Tables */
+.dark-shell .table-wrap,
+.dark-shell .dark-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow);
+  scrollbar-color: #d6d0e6 #fff;
+}
+.dark-shell .dark-table { color: var(--text); font-size: 13.5px; }
+.dark-shell .dark-table thead th {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: #faf8f3;
+  color: var(--muted);
+  font-size: 11px;
+}
+.dark-shell .dark-table tbody td { padding: 14px 18px; border-bottom: 1px solid #f0ede5; color: var(--text); }
+.dark-shell .dark-table tbody tr:hover { background: #fbf9ff; }
+.dark-shell .dark-table td button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #ddd3f8;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.dark-shell .dark-table td button:hover { border-color: var(--primary); background: #e6dffb; }
+.dark-shell .dark-table td button.link { min-height: 0; padding: 0 6px; border: 0; background: none; }
+.dark-shell .dark-table td button.danger,
+.dark-shell .dark-table td button.link.danger { color: var(--danger); }
+.dark-shell .dark-empty-state { border: 1px dashed var(--border-strong); background: #fff; }
+.dark-shell .empty-state-icon { border-color: #ddd3f8; background: var(--primary-soft); color: var(--primary); }
+.dark-shell .dark-empty-state strong { color: var(--text); }
+
+/* ---- Key/value detail blocks */
+.dark-shell .kv.dark-kv > div { border: 1px solid var(--border); border-radius: 14px; background: #fbfaf7; }
+.dark-shell .kv.dark-kv dt { color: var(--muted); }
+.dark-shell .kv.dark-kv dd,
+.dark-shell .dark-inline-value { color: var(--text); }
+.dark-shell .sub.dark-sub { border: 1px solid var(--border); border-radius: 16px; background: #fff; }
+.dark-shell .sub.dark-sub h3 { color: var(--primary); }
+.dark-shell .dark-array-item { border: 1px solid var(--border); background: #fbfaf7; }
+
+/* ---- Forms */
+.dark-shell .dark-field { color: var(--text); gap: 7px; }
+.dark-shell .dark-field > .field-label,
+.dark-shell .field > span { color: #3a3650; font-size: 12.5px; font-weight: 650; }
+.dark-shell .dark-input,
+.dark-shell .content input:not([type="checkbox"]):not([type="radio"]),
+.dark-shell .content select,
+.dark-shell .content textarea {
+  min-height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+  font-size: 14px;
+}
+.dark-shell .dark-input::placeholder,
+.dark-shell .content input::placeholder,
+.dark-shell .content textarea::placeholder { color: #8a86a0; }
+.dark-shell .dark-input:focus,
+.dark-shell .content input:not([type="checkbox"]):not([type="radio"]):focus,
+.dark-shell .content select:focus,
+.dark-shell .content textarea:focus {
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 4px #4b2fb820;
+}
+.dark-shell .content select,
+.dark-shell select.dark-input { color-scheme: light; }
+.dark-shell .content select option { background: #fff; color: var(--text); }
+.dark-shell .content input:disabled,
+.dark-shell .content select:disabled { background: #f3f0e8; color: #8a86a0; }
+.dark-shell .field-hint { color: var(--muted); }
+.dark-shell .checkbox-control input[type="checkbox"] { accent-color: var(--primary); }
+.dark-shell .checkbox-control .field-label { color: var(--text); }
+
+/* ---- Pager, refresh button, scanner */
+.dark-shell .pager-bar { padding: 4px 2px; }
+.dark-shell .pager-bar button.current { background: var(--primary); border-color: var(--primary); color: #fff; }
+.dark-shell .rf-btn { border-color: var(--border-strong); border-radius: 12px; background: #fff; color: var(--text); }
+.dark-shell .rf-btn:hover:not(:disabled) { border-color: var(--primary); background: #fbfaff; }
+.dark-shell .stock-refresh { border-color: var(--border-strong); border-radius: 12px; background: #fff; color: var(--text); }
+.dark-shell .scanner-view { border-radius: 16px; }
+.dark-shell .qr img { border-color: var(--border); border-radius: 12px; }
+
+/* ---- Modals */
+.dark-shell .dark-modal-backdrop { background: rgba(30, 27, 46, .45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.dark-shell .dark-modal { border: 1px solid var(--border); border-radius: 20px; background: #fff; box-shadow: 0 24px 80px rgba(30, 27, 46, .25); color: var(--text); }
+.dark-shell .dark-modal-head { border-bottom: 1px solid var(--border); background: #fff; }
+.dark-shell .dark-modal-head h2 { color: var(--text); }
+.dark-shell .modal-eyebrow { color: var(--primary); }
+.dark-shell .modal-close { min-height: 0; border: 1px solid var(--border-strong); border-radius: 10px; background: #fff; color: var(--muted); }
+.dark-shell .modal-close:hover { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+
+/* ---- Receive Stock page polish: form sections read as clear steps */
+.dark-shell .content form.card h2 { margin: 22px 0 6px; font-size: 17px; }
+.dark-shell .content form.card h2:first-child { margin-top: 0; }
+.dark-shell .content form.card h3 { margin: 18px 0 10px; font-size: 14.5px; }
+.dark-shell .content form.card > .grid { margin-bottom: 4px; }
+
+/* ---- Items page: "popular items" cards and the table's action links */
+.dark-shell .content .card .grid > .card { margin-bottom: 0; background: #fbfaf7; box-shadow: none; }
+
+@media (max-width: 600px) {
+  .dark-shell .toolbar input { max-width: none; width: 100%; }
+  .dark-shell .toolbar > * { flex: 1 1 100%; }
+  .dark-shell .toolbar > .rf-btn,
+  .dark-shell .toolbar > a { flex: 1 1 auto; }
+  .dark-shell .tabs { display: flex; width: 100%; }
+  .dark-shell .tabs button { flex: 1 1 auto; }
+  .dark-shell .dark-table thead th,
+  .dark-shell .dark-table tbody td { padding: 12px 14px; }
+  .dark-shell .pager-bar { justify-content: center; }
+}
+
+/* ---- Icon-only buttons: no side padding, glyph centred (fixes the pop-up close "×") */
+.dark-shell .modal-close,
+.dark-shell .mobile-menu-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  line-height: 1;
+}
+.dark-shell .modal-close { flex: 0 0 40px; font-size: 22px; font-weight: 400; }
+.dark-shell .mobile-menu-button { flex: 0 0 40px; font-size: 20px; }
+.dark-shell .modal-close > *,
+.dark-shell .mobile-menu-button > * { display: block; line-height: 1; }
+
+/* ---- Forms inside pop-ups */
+.dark-shell .dark-modal-body form > button.primary,
+.dark-shell .dark-modal-body > button.primary { width: 100%; min-height: 46px; margin-top: 6px; }
+.dark-shell .dark-modal-body .field,
+.dark-shell .dark-modal-body .dark-field { margin-bottom: 14px; }
+.dark-shell .dark-modal-body .alert { margin-bottom: 16px; }

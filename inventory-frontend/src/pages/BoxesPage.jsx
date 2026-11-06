@@ -80,7 +80,7 @@ export default function BoxesPage() {
   );
 
   return (
-    <>
+    <div className="page page-boxes">
       <div className="rf-head">
         <h1>Boxes</h1>
         <RefreshButton onClick={() => { reload(); warehouses.reload(); suppliers.reload(); printers.reload(); loadLookups(true); }} busy={loading} />
@@ -121,6 +121,6 @@ export default function BoxesPage() {
           )}
         </Modal>
       )}
-    </>
+    </div>
   );
 }

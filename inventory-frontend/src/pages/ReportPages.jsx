@@ -159,7 +159,7 @@ export function StockPage() {
   ];
 
   return (
-    <>
+    <div className="page page-stock">
       <style>{`
         .stock-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
         .stock-head h1 { margin: 0; }
@@ -210,7 +210,7 @@ export function StockPage() {
           </form>
         </Modal>
       )}
-    </>
+    </div>
   );
 }
 
@@ -320,7 +320,7 @@ export function MovementsPage() {
     ));
 
   return (
-    <>
+    <div className="page page-movements">
       <style>{`
         .stock-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
         .stock-head h1 { margin: 0; }
@@ -383,7 +383,7 @@ export function MovementsPage() {
           </form>
         </Modal>
       )}
-    </>
+    </div>
   );
 }
 
@@ -392,7 +392,7 @@ export function LowStockPage() {
   const [limit, setLimit] = useState(20);
   const { data, loading, error, reload } = useFetch(getLowStock);
   return (
-    <>
+    <div className="page page-lowstock">
       <div className="rf-head">
         <h1>Low stock</h1>
         <RefreshButton onClick={reload} busy={loading} />
@@ -400,6 +400,6 @@ export function LowStockPage() {
       <ErrorMessage error={error} onRetry={reload} />
       {loading ? <Loading /> : <AutoTable rows={pageSlice(extractList(data), page, limit)} empty="Nothing is below minimum stock." />}
       <Pager page={page} limit={limit} total={extractList(data).length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
-    </>
+    </div>
   );
 }

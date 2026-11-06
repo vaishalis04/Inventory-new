@@ -83,7 +83,7 @@ function MasterPage({ title, list, create, update, remove, fields, removeNote })
   ));
 
   return (
-    <>
+    <div className="page page-master">
       <div className="toolbar">
         <h1 style={{ margin: 0, flex: 1 }}>{title}</h1>
         <RefreshButton onClick={reload} busy={loading} />
@@ -105,7 +105,7 @@ function MasterPage({ title, list, create, update, remove, fields, removeNote })
           </form>
         </Modal>
       )}
-    </>
+    </div>
   );
 }
 
@@ -189,7 +189,7 @@ export function CategoriesPage() {
   const patchField = (i, patch) => setFields((old) => old.map((x, j) => (i === j ? { ...x, ...patch } : x)));
 
   return (
-    <>
+    <div className="page page-categories">
       <div className="toolbar">
         <h1 style={{ margin: 0, flex: 1 }}>Categories</h1>
         <RefreshButton onClick={reload} busy={loading} />
@@ -234,7 +234,7 @@ export function CategoriesPage() {
           </form>
         </Modal>
       )}
-    </>
+    </div>
   );
 }
 

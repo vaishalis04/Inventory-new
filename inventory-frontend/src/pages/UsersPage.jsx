@@ -106,7 +106,7 @@ export default function UsersPage() {
   );
 
   return (
-    <>
+    <div className="page page-users">
       <div className="toolbar">
         <h1 style={{ margin: 0, flex: 1 }}>Users</h1>
         <RefreshButton onClick={reload} busy={loading} />
@@ -136,6 +136,6 @@ export default function UsersPage() {
           </form>
         </Modal>
       )}
-    </>
+    </div>
   );
 }

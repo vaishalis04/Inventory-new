@@ -249,7 +249,7 @@ export default function ScanPage() {
   }));
 
   return (
-    <>
+    <div className="page page-scan">
       <style>{`
         .stock-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
         .stock-head h1 { margin: 0; }
@@ -451,6 +451,6 @@ export default function ScanPage() {
           </form>
         </>
       )}
-    </>
+    </div>
   );
 }

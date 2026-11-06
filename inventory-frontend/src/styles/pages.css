@@ -1,0 +1,143 @@
+/* ==========================================================================
+   LIGHT THEME — page-specific layouts (Scan, Stock, Movements, Users,
+   Categories, Print Jobs, Item form, Low stock).
+   Each page root carries a class like "page page-scan"; shared parts live in
+   components.css. Loaded after components.css.
+   ========================================================================== */
+
+/* ---- Shared page rhythm */
+.dark-shell .page { min-width: 0; }
+.dark-shell .page > h1:first-child,
+.dark-shell .page > .rf-head,
+.dark-shell .page > .stock-head { margin-bottom: 20px; }
+.dark-shell .page > .toolbar:first-child { margin-bottom: 22px; }
+.dark-shell .content form.card { max-width: 1100px; }
+
+/* Filter bars (Stock warehouse filter, Movements filters) read as one panel */
+.dark-shell .page-stock .toolbar,
+.dark-shell .page-movements form.toolbar {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+/* ---- Scan ---- */
+.dark-shell .page-scan > .stock-head + .toolbar { margin-bottom: 18px; }
+.dark-shell .page-scan > .stock-head + .toolbar button.primary { min-height: 52px; padding: 0 28px; border-radius: 14px; font-size: 15px; }
+.dark-shell .page-scan form.toolbar {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow);
+  align-items: flex-end;
+}
+.dark-shell .page-scan form.toolbar .field { flex: 1 1 280px; max-width: 460px; }
+.dark-shell .page-scan form.toolbar input { max-width: none; }
+.dark-shell .page-scan .card.scanner { max-width: 600px; }
+.dark-shell .page-scan .scanner-view { max-width: 100%; border-radius: 18px; }
+.dark-shell .page-scan .scanner-frame { border-color: #fff; border-radius: 16px; }
+.dark-shell .page-scan > .card:first-of-type h2,
+.dark-shell .page-scan .card > h2:first-child { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; font-size: 20px; }
+.dark-shell .page-scan .card > h2 .badge { font-size: 12px; padding: 4px 12px; }
+.dark-shell .page-scan form.card .grid { gap: 0 16px; }
+
+/* ---- Stock / Movements ---- */
+.dark-shell .page-movements form.toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px 16px;
+  align-items: end;
+}
+.dark-shell .page-movements form.toolbar .field { min-width: 0; }
+.dark-shell .page-movements form.toolbar button { width: 100%; }
+.dark-shell .page-stock .toolbar .field { min-width: 220px; }
+/* the "View history" window holds a wide table */
+.dark-shell .dark-modal:has(.dark-table-wrap) { width: min(100%, 1040px); }
+.dark-shell .dark-modal .dark-table-wrap { box-shadow: none; }
+
+/* ---- Users, Categories, Print jobs, Low stock: list pages ---- */
+.dark-shell .page-users .toolbar,
+.dark-shell .page-master .toolbar,
+.dark-shell .page-categories .toolbar,
+.dark-shell .page-printjobs .toolbar { justify-content: space-between; }
+.dark-shell .page-users .toolbar h1,
+.dark-shell .page-master .toolbar h1,
+.dark-shell .page-categories .toolbar h1,
+.dark-shell .page-printjobs .toolbar h1 { margin: 0; }
+.dark-shell .page-lowstock .dark-table tbody tr:hover { background: #fff6f6; }
+
+/* ---- Item form ---- */
+.dark-shell .page-itemform > .muted { margin: -8px 0 20px; max-width: 70ch; }
+.dark-shell .page-itemform form.card { padding: 26px; }
+.dark-shell .page-itemform form.card .grid { gap: 0 20px; }
+.dark-shell .page-itemform form.card h2 {
+  margin: 28px 0 6px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+  font-size: 16px;
+}
+.dark-shell .page-itemform form.card h2:first-of-type { margin-top: 6px; padding-top: 0; border-top: 0; }
+.dark-shell .page-itemform .row-actions {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  gap: 10px;
+}
+.dark-shell .page-itemform .row-actions button.primary { min-width: 140px; }
+
+/* ---- Phones and tablets ---- */
+@media (max-width: 760px) {
+  .dark-shell .page-scan form.toolbar .field { max-width: none; flex-basis: 100%; }
+  .dark-shell .page-scan > .stock-head + .toolbar button.primary { width: 100%; }
+  .dark-shell .page-stock .toolbar,
+  .dark-shell .page-movements form.toolbar,
+  .dark-shell .page-scan form.toolbar { padding: 14px; }
+  .dark-shell .page-stock .toolbar .field { min-width: 0; flex: 1 1 100%; }
+  .dark-shell .page-itemform form.card { padding: 18px; }
+  .dark-shell .page-itemform .row-actions button { flex: 1 1 auto; }
+  .dark-shell .dark-modal:has(.dark-table-wrap) { width: 100%; }
+}
+
+/* ==========================================================================
+   Pages hidden from the sidebar (Boxes, Transfers, Stock count) and the
+   generic master pages (Warehouses, Suppliers, Printers) — same design,
+   so they look right as soon as a menu entry is switched back on.
+   ========================================================================== */
+
+/* Boxes: filter panel like Stock; wide table scrolls inside its card */
+.dark-shell .page-boxes .toolbar {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.dark-shell .page-boxes .toolbar .field { min-width: 220px; }
+
+/* Transfers and Stock count: one focused form card */
+.dark-shell .page-transfers form.card,
+.dark-shell .page-stockcount form.card {
+  max-width: 780px;
+  padding: 26px;
+}
+.dark-shell .page-transfers .tabs { display: flex; width: 100%; margin-bottom: 20px; }
+.dark-shell .page-transfers .tabs button { flex: 1 1 0; }
+.dark-shell .page-transfers form.card > button.primary,
+.dark-shell .page-stockcount form.card > button.primary { min-width: 200px; min-height: 48px; margin-top: 8px; }
+.dark-shell .page-stockcount > .card { max-width: 780px; }
+
+/* Warehouses, Suppliers, Printers (shared master page): tidy action column */
+.dark-shell .page-master .dark-table td:last-child,
+.dark-shell .page-categories .dark-table td:last-child { white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .dark-shell .page-boxes .toolbar { padding: 14px; }
+  .dark-shell .page-boxes .toolbar .field { min-width: 0; flex: 1 1 100%; }
+  .dark-shell .page-transfers form.card,
+  .dark-shell .page-stockcount form.card { padding: 18px; }
+  .dark-shell .page-transfers form.card > button.primary,
+  .dark-shell .page-stockcount form.card > button.primary { width: 100%; }
+}

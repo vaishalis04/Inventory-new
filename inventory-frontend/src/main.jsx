@@ -5,6 +5,10 @@ import { AuthProvider } from "./context/AuthContext";
 import App from "./App.jsx";
 import "./index.css";
 import "./App.css";
+import "./styles/theme-light.css";
+import "./styles/components.css";
+import "./styles/pages.css";
+import "./styles/login.css";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

@@ -41,7 +41,7 @@ export default function TransfersPage() {
   }
 
   return (
-    <>
+    <div className="page page-transfers">
       <div className="rf-head">
         <h1>Transfer stock</h1>
         <RefreshButton onClick={() => { warehouses.reload(); items.reload(); }} busy={warehouses.loading || items.loading} />
@@ -67,6 +67,6 @@ export default function TransfersPage() {
         <FormField label="Note" value={f.note} onChange={set("note")} />
         <button className="primary" disabled={busy}>{busy ? "Transferring..." : "Transfer"}</button>
       </form>
-    </>
+    </div>
   );
 }

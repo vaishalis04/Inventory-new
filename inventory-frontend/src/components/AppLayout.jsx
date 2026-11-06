@@ -67,6 +67,7 @@ export default function AppLayout() {
             <NavLink
               key={to}
               to={to}
+              title={label}
               end={to === "/dashboard"}
               className={({ isActive }) =>
                 `sidebar-link ${isActive ? "active" : ""}`

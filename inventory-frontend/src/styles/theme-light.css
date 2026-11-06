@@ -1,0 +1,175 @@
+/* ==========================================================================
+   LIGHT THEME — "Icon rail + tinted tiles" (design option C)
+   Loaded AFTER App.css (see main.jsx). Only colours, spacing and layout are
+   changed here; no markup or behaviour depends on this file.
+   To re-brand the whole app, change the tokens in the two blocks below.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+  --bg: #fbfaf7;
+  --panel: #ffffff;
+  --text: #1e1b2e;
+  --muted: #5a5670;
+  --border: #e6e2d8;
+  --primary: #4b2fb8;
+  --primary-dark: #3c2496;
+  --danger: #b42318;
+  --ok: #14653a;
+}
+
+.dark-shell {
+  /* surfaces */
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #f6f4ee;
+  --panel: #ffffff;
+  /* lines */
+  --border: #e6e2d8;
+  --border-strong: #d6d0e6;
+  /* text */
+  --text: #1e1b2e;
+  --muted: #5a5670;
+  /* brand */
+  --primary: #4b2fb8;
+  --primary-dark: #3c2496;
+  --primary-hover: #3c2496;
+  --primary-soft: #efeafd;
+  /* status */
+  --success: #14653a;
+  --success-soft: #e3f5ec;
+  --warning: #7a4a00;
+  --warning-soft: #fff1d6;
+  --danger: #b42318;
+  --danger-soft: #fde7e7;
+  --ok: #14653a;
+  /* shape */
+  --radius: 14px;
+  --radius-lg: 18px;
+  --shadow: 0 1px 2px rgba(30, 27, 46, .04), 0 6px 20px rgba(30, 27, 46, .04);
+
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body { background: #fbfaf7; }
+
+/* --------------------------------------------------------------------------
+   Navigation: full sidebar on the mobile drawer, icon rail on desktop/tablet
+   -------------------------------------------------------------------------- */
+.dark-shell .sidebar {
+  background: #ffffff;
+  border-right: 1px solid var(--border);
+  padding: 20px 14px 16px;
+  scrollbar-color: #d6d0e6 transparent;
+}
+
+.dark-shell .brand { color: var(--text); margin: 0 6px 24px; }
+/* the logo link is "active" on the dashboard: keep it a plain logo, not a highlighted button */
+.dark-shell .sidebar .brand,
+.dark-shell .sidebar .brand:hover,
+.dark-shell .sidebar .brand.active { padding: 0; border-radius: 0; background: transparent; color: var(--text); }
+.dark-shell .brand-mark {
+  border: 0;
+  border-radius: 14px;
+  background: #1e1b2e;
+  box-shadow: none;
+  color: #fff;
+}
+.dark-shell .brand-copy strong { color: var(--text); }
+.dark-shell .brand-copy small { color: var(--muted); }
+.dark-shell .sidebar-caption { color: #7b7790; }
+
+.dark-shell .sidebar-link {
+  min-height: 46px;
+  border-radius: 14px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.dark-shell .sidebar-link:hover { color: var(--text); background: var(--surface-hover); }
+.dark-shell .sidebar-link.active {
+  border-color: transparent;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+}
+.dark-shell .nav-icon { color: #7b7790; }
+.dark-shell .sidebar-link:hover .nav-icon { color: var(--text); }
+.dark-shell .sidebar-link.active .nav-icon { background: transparent; color: var(--primary); }
+.dark-shell .nav-active-mark { display: none; }
+
+.dark-shell .sidebar-status {
+  border-color: var(--border);
+  background: #fbfaf7;
+}
+.dark-shell .status-dot { background: #1fa86a; box-shadow: 0 0 0 4px #1fa86a22; }
+.dark-shell .sidebar-status strong { color: var(--text); }
+.dark-shell .sidebar-status small { color: var(--muted); }
+
+@media (min-width: 901px) {
+  .dark-shell .sidebar {
+    width: 84px;
+    padding: 18px 0 14px;
+    align-items: center;
+  }
+  .dark-shell .brand { margin: 0 0 20px; min-height: 0; justify-content: center; }
+  .dark-shell .brand-copy,
+  .dark-shell .sidebar-caption { display: none; }
+  .dark-shell .sidebar-nav { width: 100%; align-items: center; padding: 0 16px; gap: 6px; }
+  .dark-shell .sidebar-link {
+    width: 52px;
+    height: 52px;
+    min-height: 52px;
+    padding: 0;
+    justify-content: center;
+  }
+  .dark-shell .sidebar-link > span:not(.nav-icon):not(.nav-active-mark) { display: none; }
+  .dark-shell .nav-icon { flex-basis: 28px; width: 28px; height: 28px; font-size: 21px; }
+  .dark-shell .sidebar-bottom { padding-top: 16px; }
+  .dark-shell .sidebar-status { padding: 12px; justify-content: center; }
+  .dark-shell .sidebar-status > span:not(.status-dot) { display: none; }
+  .dark-shell .main { width: calc(100% - 84px); margin-left: 84px; }
+}
+
+@media (max-width: 900px) {
+  .dark-shell .sidebar { box-shadow: 0 0 40px rgba(30, 27, 46, .18); }
+  .dark-shell .sidebar-backdrop { background: rgba(30, 27, 46, .35); backdrop-filter: blur(2px); }
+  .dark-shell .mobile-menu-button { color: var(--text); background: #fff; }
+}
+
+/* --------------------------------------------------------------------------
+   Top bar and page area
+   -------------------------------------------------------------------------- */
+.dark-shell .topbar {
+  min-height: 68px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(251, 250, 247, .92);
+  backdrop-filter: blur(10px);
+}
+.dark-shell .breadcrumb { color: var(--muted); font-size: 13px; }
+.dark-shell .breadcrumb-separator { color: #b3afc4; }
+.dark-shell .breadcrumb strong { color: var(--text); }
+.dark-shell .user-avatar { border: 1px solid #ddd3f8; border-radius: 12px; background: var(--primary-soft); color: var(--primary); }
+.dark-shell .user-details strong { color: var(--text); font-size: 13px; }
+.dark-shell .user-details span { color: var(--muted); font-size: 11px; }
+.dark-shell .logout-button {
+  min-height: 40px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+}
+.dark-shell .logout-button:hover { border-color: #e4a3a3; background: var(--danger-soft); color: var(--danger); }
+
+.dark-shell .content { padding: 28px 34px 40px; max-width: none; }
+.dark-shell .content h1 { color: var(--text); font-size: clamp(24px, 3vw, 30px); font-weight: 750; letter-spacing: -.6px; }
+.dark-shell .content h2,
+.dark-shell .content h3 { color: var(--text); letter-spacing: -.2px; }
+.dark-shell .content hr { border-top-color: var(--border); }
+.dark-shell .content a:not(.sidebar-link) { color: var(--primary); font-weight: 600; }
+.dark-shell .content a:not(.sidebar-link):hover { color: var(--primary-dark); }
+
+@media (max-width: 900px) { .dark-shell .content { padding: 22px 18px 36px; } }
+@media (max-width: 600px) { .dark-shell .content { padding: 18px 14px 32px; } }

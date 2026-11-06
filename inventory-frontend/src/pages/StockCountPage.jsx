@@ -34,7 +34,7 @@ export default function StockCountPage() {
   }
 
   return (
-    <>
+    <div className="page page-stockcount">
       <div className="rf-head">
         <h1>Stock count</h1>
         <RefreshButton onClick={() => { warehouses.reload(); items.reload(); }} busy={warehouses.loading || items.loading} />
@@ -57,6 +57,6 @@ export default function StockCountPage() {
         <FormField label="Note / reason" value={f.note} onChange={set("note")} placeholder="Monthly stock take" />
         <button className="primary" disabled={busy}>{busy ? "Saving..." : "Submit count"}</button>
       </form>
-    </>
+    </div>
   );
 }

@@ -17,7 +17,7 @@ export default function PrintJobsPage() {
     try { await openPrintSheet(job.id); } catch (e) { setErr(e.message); }
   };
   return (
-    <>
+    <div className="page page-printjobs">
       <div className="toolbar">
         <h1 style={{ margin: 0, flex: 1 }}>Print jobs</h1>
         <RefreshButton onClick={reload} busy={loading} />
@@ -27,6 +27,6 @@ export default function PrintJobsPage() {
         <AutoTable rows={extractList(data)} actions={(job) => <button className="link" onClick={() => open(job)}>Open sheet</button>} />
       )}
       <Pager page={page} limit={limit} total={data?.meta?.total ?? extractList(data).length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
-    </>
+    </div>
   );
 }
