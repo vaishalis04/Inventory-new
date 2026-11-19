@@ -4,6 +4,7 @@ import { extractList } from "../api/http";
 import useFetch from "../hooks/useFetch";
 import RefreshButton from "../components/RefreshButton";
 import FormField from "../components/FormField";
+import SearchableSelect from "../components/SearchableSelect";
 import { ErrorMessage, Success } from "../components/LoadingState";
 import DataView from "../components/DataView";
 
@@ -19,6 +20,7 @@ export default function StockCountPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError(""); setResult(null);
+    if (!f.warehouse_id || !f.item_id) return setError("Select a warehouse and an item.");
     const counted = Number(f.counted_quantity);
     if (!(counted >= 0) || f.counted_quantity === "") return setError("Enter the counted quantity (0 or more).");
     const itemName = extractList(items.data).find((i) => String(i.id) === f.item_id)?.name;
@@ -50,8 +52,8 @@ export default function StockCountPage() {
         <div className="grid">
           <FormField label="Warehouse" value={f.warehouse_id} onChange={set("warehouse_id")} required
             options={extractList(warehouses.data).map((w) => ({ value: w.id, label: w.name }))} />
-          <FormField label="Item" value={f.item_id} onChange={set("item_id")} required
-            options={extractList(items.data).map((i) => ({ value: i.id, label: [i.name, i.model].filter(Boolean).join(" — ") }))} />
+          <SearchableSelect label="Item" value={f.item_id} onChange={set("item_id")} required
+            options={extractList(items.data).map((i) => ({ value: i.id, label: [i.name, i.model, i.sku].filter(Boolean).join(" — ") }))} />
           <FormField label="Counted quantity" type="number" min="0" value={f.counted_quantity} onChange={set("counted_quantity")} required />
         </div>
         <FormField label="Note / reason" value={f.note} onChange={set("note")} placeholder="Monthly stock take" />

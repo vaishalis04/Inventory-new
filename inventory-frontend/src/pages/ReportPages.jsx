@@ -22,6 +22,7 @@ import { pageSlice } from "../utils/paging";
 import PeriodFilter from "../components/PeriodFilter";
 import { dayBounds } from "../utils/dateRange";
 import FormField from "../components/FormField";
+import SearchableSelect from "../components/SearchableSelect";
 import Modal from "../components/Modal";
 import { ErrorMessage, Loading } from "../components/LoadingState";
 
@@ -353,8 +354,8 @@ export function MovementsPage() {
         <FormField label="Search" placeholder="Item, SKU, box, reference or note" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
         <FormField label="Warehouse" value={f.warehouse_id} onChange={(e) => setF({ ...f, warehouse_id: e.target.value })}
           options={extractList(warehouses.data).map((w) => ({ value: w.id, label: w.name }))} />
-        <FormField label="Item" value={f.item_id} onChange={(e) => setF({ ...f, item_id: e.target.value })}
-          options={extractList(items.data).map((i) => ({ value: i.id, label: i.model ? `${i.name} (${i.model})` : i.name }))} />
+        <SearchableSelect label="Item" value={f.item_id} onChange={(e) => setF({ ...f, item_id: e.target.value })}
+          options={extractList(items.data).map((i) => ({ value: i.id, label: [i.name, i.model, i.sku].filter(Boolean).join(" — ") }))} />
         <FormField label="Type" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}
           options={[
             { value: "IN", label: "In" },
@@ -369,7 +370,12 @@ export function MovementsPage() {
         <button type="button" onClick={resetFilters}>Reset</button>
       </form>
       <ErrorMessage error={error || pageError || rangeError} onRetry={reload} />
-      {loading ? <Loading /> : <AutoTable rows={extractList(data)} actions={actions || undefined} />}
+      {loading ? <Loading /> : <AutoTable
+        rows={extractList(data)}
+        actions={actions || undefined}
+        hide={["item_id", "warehouse_id", "user_id", "box_id", "Box"]}
+        order={["Warehouse", "Item"]}
+      />}
       <Pager page={page} limit={limit} total={data?.meta?.total ?? extractList(data).length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
 
       {editing && (

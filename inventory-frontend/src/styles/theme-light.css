@@ -109,9 +109,11 @@ body { background: #fbfaf7; }
 .dark-shell .sidebar-status small { color: var(--muted); }
 
 @media (min-width: 901px) {
-  /* default = slim icon rail; the ☰ button in the top bar expands it to the full menu */
+  /* The icon rail can expand without covering the application content. */
   .dark-shell .sidebar { width: 84px; transition: width .22s ease, box-shadow .22s ease; }
   .dark-shell .main { width: calc(100% - 84px); margin-left: 84px; }
+  .dark-shell.sidebar-expanded .sidebar { width: 224px; }
+  .dark-shell.sidebar-expanded .main { width: calc(100% - 224px); margin-left: 224px; }
 
   .dark-shell .sidebar:not(.sidebar-open) { padding: 18px 0 14px; align-items: center; }
   .dark-shell .sidebar:not(.sidebar-open) .brand { margin: 0 0 20px; min-height: 0; justify-content: center; }
@@ -131,24 +133,12 @@ body { background: #fbfaf7; }
   .dark-shell .sidebar:not(.sidebar-open) .sidebar-status { padding: 12px; justify-content: center; }
   .dark-shell .sidebar:not(.sidebar-open) .sidebar-status > span:not(.status-dot) { display: none; }
 
-  /* expanded: full menu with labels, floating over the page */
-  .dark-shell .sidebar.sidebar-open { width: 264px; box-shadow: 0 0 60px rgba(30, 27, 46, .22); }
-  .dark-shell .sidebar-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    display: block;
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: rgba(30, 27, 46, .28);
-    backdrop-filter: blur(2px);
-    cursor: default;
-  }
+  .dark-shell .sidebar-backdrop { display: none; }
 }
 
 @media (max-width: 900px) {
+  .dark-shell .main { width: 100%; margin-left: 0; }
+  .dark-shell.sidebar-expanded .main { width: 100%; margin-left: 0; }
   .dark-shell .sidebar { box-shadow: 0 0 40px rgba(30, 27, 46, .18); }
   .dark-shell .sidebar-backdrop { background: rgba(30, 27, 46, .35); backdrop-filter: blur(2px); }
   .dark-shell .mobile-menu-button { color: var(--text); background: #fff; }

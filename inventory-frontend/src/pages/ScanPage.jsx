@@ -15,6 +15,16 @@ import { ErrorMessage, Success } from "../components/LoadingState";
 import CameraScanner from "../components/ScanCamera";
 
 const has = (v) => v !== null && v !== undefined && v !== "";
+const todayLocal = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+const dateAtCurrentLocalTime = (date) => {
+  if (!date) return undefined;
+  const [year, month, day] = date.split("-").map(Number);
+  const now = new Date();
+  return new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds()).toISOString();
+};
 
 /** One block with only the relevant facts (no repeated item / unit / warehouse sections). */
 function ScanDetails({ result }) {
@@ -110,6 +120,7 @@ export default function ScanPage() {
     warehouse_id: "",
     box_code: "",
     performed_by: "",
+    movement_date: todayLocal(),
   });
 
   const warehouses = useFetch(() => listWarehouses());
@@ -188,6 +199,7 @@ export default function ScanPage() {
       quantity: isUnit ? 1 : quantity,
       performed_by: performedBy,
       note: adj.note.trim() || undefined,
+      movement_at: dateAtCurrentLocalTime(adj.movement_date),
     };
 
     if (result.type === "ITEM") {
@@ -372,6 +384,14 @@ export default function ScanPage() {
                 }
                 required
               />}
+
+              <FormField
+                label="Adjustment date"
+                type="date"
+                value={adj.movement_date}
+                onChange={(e) => setAdj({ ...adj, movement_date: e.target.value })}
+                hint="Defaults to today. Clear the date to record the current date and time."
+              />
 
               {isItem && (
                 <FormField

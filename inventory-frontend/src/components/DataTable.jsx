@@ -56,7 +56,7 @@ export function DataTable({
  * Automatically builds columns from scalar fields and nested name/code fields.
  * Hidden fields and unresolved IDs are omitted.
  */
-export function AutoTable({ rows, actions, hide = [], ...rest }) {
+export function AutoTable({ rows, actions, hide = [], order = [], ...rest }) {
   useLookups();
 
   const sample = rows?.slice(0, 20) ?? [];
@@ -93,7 +93,16 @@ export function AutoTable({ rows, actions, hide = [], ...rest }) {
     )
   );
 
-  const columns = visible.map((key) => ({
+  const ordered = [...visible].sort((a, b) => {
+    const aIndex = order.indexOf(a);
+    const bIndex = order.indexOf(b);
+    if (aIndex === -1 && bIndex === -1) return 0;
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  });
+
+  const columns = ordered.map((key) => ({
     key,
     label: pretty(key),
     render: (row) => {

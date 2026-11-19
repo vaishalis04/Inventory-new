@@ -3,6 +3,7 @@ import { getHistory, listItems, listWarehouses } from "../api/inventory.api";
 import { extractList } from "../api/http";
 import useFetch from "../hooks/useFetch";
 import FormField from "../components/FormField";
+import SearchableSelect from "../components/SearchableSelect";
 import DataTable from "../components/DataTable";
 import Pager from "../components/Pager";
 import PeriodFilter from "../components/PeriodFilter";
@@ -121,8 +122,8 @@ export default function HistoryPage() {
 
       <form className="toolbar hist-filters" onSubmit={apply}>
         <FormField label="Search" placeholder="Item, SKU, serial / reference, box, remark or user" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
-        <FormField label="Item" value={f.item_id} onChange={(e) => setF({ ...f, item_id: e.target.value })}
-          options={itemList.map((i) => ({ value: i.id, label: i.model ? `${i.name} (${i.model})` : i.name }))} />
+        <SearchableSelect label="Item" value={f.item_id} onChange={(e) => setF({ ...f, item_id: e.target.value })}
+          options={itemList.map((i) => ({ value: i.id, label: [i.name, i.model, i.sku].filter(Boolean).join(" — ") }))} />
         <FormField label="Warehouse" value={f.warehouse_id} onChange={(e) => setF({ ...f, warehouse_id: e.target.value })}
           options={extractList(warehouses.data).map((w) => ({ value: w.id, label: w.name }))} />
         <FormField label="Event" value={f.event} onChange={(e) => setF({ ...f, event: e.target.value || "all" })} options={EVENT_OPTIONS} />

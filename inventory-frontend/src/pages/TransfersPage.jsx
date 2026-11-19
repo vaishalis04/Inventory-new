@@ -4,6 +4,7 @@ import { extractList } from "../api/http";
 import useFetch from "../hooks/useFetch";
 import RefreshButton from "../components/RefreshButton";
 import FormField from "../components/FormField";
+import SearchableSelect from "../components/SearchableSelect";
 import { ErrorMessage, Success } from "../components/LoadingState";
 
 export default function TransfersPage() {
@@ -23,6 +24,7 @@ export default function TransfersPage() {
     const payload = { to_warehouse_id: Number(f.to_warehouse_id), note: f.note || undefined };
     if (mode === "box") payload.box_code = f.box_code.trim();
     else {
+      if (!f.item_id || !f.from_warehouse_id) return setError("Select an item and source warehouse.");
       payload.item_id = Number(f.item_id);
       payload.from_warehouse_id = Number(f.from_warehouse_id);
       payload.quantity = Number(f.quantity);
@@ -57,8 +59,8 @@ export default function TransfersPage() {
           <FormField label="Box code" value={f.box_code} onChange={set("box_code")} placeholder="BOX-3F9A1C22AB" required />
         ) : (
           <div className="grid">
-            <FormField label="Item" value={f.item_id} onChange={set("item_id")} required
-              options={extractList(items.data).map((i) => ({ value: i.id, label: [i.name, i.model].filter(Boolean).join(" — ") }))} />
+            <SearchableSelect label="Item" value={f.item_id} onChange={set("item_id")} required
+              options={extractList(items.data).map((i) => ({ value: i.id, label: [i.name, i.model, i.sku].filter(Boolean).join(" — ") }))} />
             <FormField label="From warehouse" value={f.from_warehouse_id} onChange={set("from_warehouse_id")} options={whOpts} required />
             <FormField label="Quantity" type="number" min="1" value={f.quantity} onChange={set("quantity")} required />
           </div>

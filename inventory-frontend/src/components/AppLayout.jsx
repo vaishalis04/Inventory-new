@@ -43,7 +43,7 @@ export default function AppLayout() {
   );
 
   return (
-    <div className="shell dark-shell">
+    <div className={`shell dark-shell${mobileNavOpen ? " sidebar-expanded" : ""}`}>
       {mobileNavOpen && (
         <button
           className="sidebar-backdrop"
@@ -100,7 +100,7 @@ export default function AppLayout() {
             <button
               className="mobile-menu-button"
               type="button"
-              aria-label="Toggle navigation"
+              aria-label={mobileNavOpen ? "Collapse navigation" : "Expand navigation"}
               aria-expanded={mobileNavOpen}
               onClick={() => setMobileNavOpen((open) => !open)}
             >

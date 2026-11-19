@@ -135,6 +135,7 @@ async function applyStockChange(p, t) {
       reference: p.reference || null,
       note: p.note || null,
       user_id: p.userId || null,
+      ...(p.movementAt ? { createdAt: p.movementAt } : {}),
     },
     { transaction: t }
   );
@@ -309,6 +310,7 @@ async function adjustBoxTx(p, t) {
       note: p.note,
       reference: p.reference,
       userId: p.userId,
+      movementAt: p.movementAt,
     },
     t
   );
@@ -350,6 +352,7 @@ exports.adjustItem = (p) =>
       autoBox,
       note,
       reference,
+      movementAt,
     } = p;
 
     const quantity = positiveInteger(p.quantity);
@@ -389,6 +392,7 @@ exports.adjustItem = (p) =>
               quantity,
               note,
               reference,
+              movementAt,
             },
             t
           ),
@@ -410,6 +414,7 @@ exports.adjustItem = (p) =>
           note,
           reference,
           userId,
+          movementAt,
         },
         t
       );
@@ -444,6 +449,7 @@ exports.adjustItem = (p) =>
           note,
           reference,
           userId,
+          movementAt,
         },
         t
       );
@@ -504,6 +510,7 @@ exports.adjustItem = (p) =>
             quantity: take,
             note,
             reference,
+            movementAt,
           },
           t
         );
