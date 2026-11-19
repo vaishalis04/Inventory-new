@@ -9,6 +9,7 @@ import ReceiveStockPage from "./pages/ReceiveStockPage";
 import ScanPage from "./pages/ScanPage";
 import BoxesPage from "./pages/BoxesPage";
 import { StockPage, MovementsPage, LowStockPage } from "./pages/ReportPages";
+import HistoryPage from "./pages/HistoryPage";
 import { WarehousesPage, CategoriesPage, SuppliersPage, PrintersPage } from "./pages/MasterPages";
 import TransfersPage from "./pages/TransfersPage";
 import StockCountPage from "./pages/StockCountPage";
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/boxes" element={<BoxesPage />} />
         <Route path="/stock" element={<StockPage />} />
         <Route path="/movements" element={<MovementsPage />} />
+        <Route path="/history" element={<HistoryPage />} />
         <Route path="/low-stock" element={<LowStockPage />} />
         <Route path="/warehouses" element={<WarehousesPage />} />
         <Route path="/categories" element={<CategoriesPage />} />

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   countStock,
   deleteMovement,
@@ -19,6 +19,8 @@ import { formatValue } from "../utils/format";
 import Pager from "../components/Pager";
 import RefreshButton from "../components/RefreshButton";
 import { pageSlice } from "../utils/paging";
+import PeriodFilter from "../components/PeriodFilter";
+import { dayBounds } from "../utils/dateRange";
 import FormField from "../components/FormField";
 import Modal from "../components/Modal";
 import { ErrorMessage, Loading } from "../components/LoadingState";
@@ -36,12 +38,21 @@ export function StockPage() {
   const canManage = ["admin", "manager"].includes(role);
 
   const [warehouseId, setWarehouseId] = useState("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [dates, setDates] = useState({ period: "all", from: "", to: "" });
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const warehouses = useFetch(() => listWarehouses());
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+  const dateParams = dayBounds(dates.from, dates.to);
+  const dateError = dates.from && dates.to && dates.from > dates.to ? "The 'From' date cannot be after the 'To' date." : "";
   const { data, loading, error, reload } = useFetch(
-    () => getStock({ warehouse_id: warehouseId, page, limit }),
-    [warehouseId, page, limit]
+    () => getStock({ warehouse_id: warehouseId, q: debouncedSearch, ...(dateError ? {} : dateParams), page, limit }),
+    [warehouseId, debouncedSearch, dateError ? "" : dateParams.from, dateError ? "" : dateParams.to, page, limit]
   );
 
   // Latest stock movements: used so "Updated At" always shows the most recent in/out/edit time of an item.
@@ -176,10 +187,12 @@ export function StockPage() {
         </button>
       </div>
       <div className="toolbar">
+        <FormField label="Search" placeholder="Item name, SKU, model or brand" value={search} onChange={(e) => setSearch(e.target.value)} />
         <FormField label="Warehouse" value={warehouseId} onChange={(e) => { setWarehouseId(e.target.value); setPage(1); }}
           options={extractList(warehouses.data).map((w) => ({ value: w.id, label: w.name }))} />
+        <PeriodFilter value={dates} onChange={(v) => { setDates(v); setPage(1); }} />
       </div>
-      <ErrorMessage error={error || pageError} onRetry={refresh} />
+      <ErrorMessage error={error || pageError || dateError} onRetry={refresh} />
       {loading ? <Loading /> : <DataTable columns={columns} rows={extractList(data)} />}
       <Pager page={page} limit={limit} total={data?.meta?.total ?? extractList(data).length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
 
@@ -224,7 +237,7 @@ export function MovementsPage() {
   const { role } = useAuth();
   const canManage = ["admin", "manager"].includes(role);
 
-  const emptyFilters = { warehouse_id: "", item_id: "", box_code: "", type: "", from: "", to: "" };
+  const emptyFilters = { q: "", warehouse_id: "", item_id: "", box_code: "", type: "", period: "all", from: "", to: "" };
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [f, setF] = useState(emptyFilters);
@@ -235,8 +248,8 @@ export function MovementsPage() {
   // The date filter covers whole days: from 00:00 of the first day to 23:59 of the last day (your local time).
   const params = useMemo(() => {
     const p = { ...applied, from: "", to: "", page, limit };
-    if (applied.from) p.from = new Date(`${applied.from}T00:00:00`).toISOString();
-    if (applied.to) p.to = new Date(`${applied.to}T23:59:59.999`).toISOString();
+    delete p.period;
+    Object.assign(p, dayBounds(applied.from, applied.to));
     return p;
   }, [applied, page, limit]);
   const { data, loading, error, reload } = useFetch(() => getMovements(params), [JSON.stringify(params)]);
@@ -337,6 +350,7 @@ export function MovementsPage() {
         </button>
       </div>
       <form className="toolbar" onSubmit={applyFilters}>
+        <FormField label="Search" placeholder="Item, SKU, box, reference or note" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
         <FormField label="Warehouse" value={f.warehouse_id} onChange={(e) => setF({ ...f, warehouse_id: e.target.value })}
           options={extractList(warehouses.data).map((w) => ({ value: w.id, label: w.name }))} />
         <FormField label="Item" value={f.item_id} onChange={(e) => setF({ ...f, item_id: e.target.value })}
@@ -349,8 +363,7 @@ export function MovementsPage() {
             { value: "TRANSFER_IN", label: "Transfer in" },
             { value: "TRANSFER_OUT", label: "Transfer out" },
           ]} />
-        <FormField label="From date" type="date" value={f.from} max={f.to || undefined} onChange={(e) => setF({ ...f, from: e.target.value })} />
-        <FormField label="To date" type="date" value={f.to} min={f.from || undefined} onChange={(e) => setF({ ...f, to: e.target.value })} />
+        <PeriodFilter value={{ period: f.period, from: f.from, to: f.to }} onChange={(v) => setF({ ...f, ...v })} />
         <FormField label="Box code" value={f.box_code} onChange={(e) => setF({ ...f, box_code: e.target.value })} />
         <button className="primary">Apply</button>
         <button type="button" onClick={resetFilters}>Reset</button>

@@ -9,6 +9,7 @@ import "./styles/theme-light.css";
 import "./styles/components.css";
 import "./styles/pages.css";
 import "./styles/login.css";
+import "./styles/history.css";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

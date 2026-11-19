@@ -30,6 +30,7 @@ export const receiveStock = (payload) =>
 export const getStock = (params) =>
   get(`/inventory/stock${qs(params)}`);
 
+export const getHistory = (params) => get(`/inventory/history${qs(params)}`);
 export const getMovements = (params) =>
   get(`/inventory/movements${qs(params)}`);
 

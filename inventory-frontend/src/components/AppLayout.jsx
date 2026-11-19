@@ -13,6 +13,7 @@ const NAV = [
   // ["/boxes", "Boxes", "▣"],
   ["/stock", "Stock", "▤"],
   ["/movements", "Movements", "⇄"],
+  ["/history", "History", "↺"],
   // ["/low-stock", "Low Stock", "!"],
   // ["/transfers", "Transfers", "↗", ["admin", "manager"]],
   // ["/stock-count", "Stock Count", "☷", ["admin", "manager"]],

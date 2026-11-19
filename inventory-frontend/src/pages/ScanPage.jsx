@@ -178,6 +178,11 @@ export default function ScanPage() {
       return;
     }
 
+    if (adj.action === "IN" && !adj.note.trim()) {
+      setError("Please enter the reason for the return (why is this item coming back in?).");
+      return;
+    }
+
     const payload = {
       action: adj.action,
       quantity: isUnit ? 1 : quantity,
@@ -411,7 +416,7 @@ export default function ScanPage() {
             />
 
             <FormField
-              label="Note"
+              label={adj.action === "IN" ? "Reason for return / re-in *" : "Note"}
               value={adj.note}
               onChange={(e) =>
                 setAdj({
@@ -419,7 +424,7 @@ export default function ScanPage() {
                   note: e.target.value,
                 })
               }
-              placeholder="Site installation"
+              placeholder={adj.action === "IN" ? "Sent back by the customer: faulty unit" : "Site installation"}
             />
 
             <div className="row-actions">

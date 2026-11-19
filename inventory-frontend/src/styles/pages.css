@@ -53,7 +53,13 @@
 }
 .dark-shell .page-movements form.toolbar .field { min-width: 0; }
 .dark-shell .page-movements form.toolbar button { width: 100%; }
-.dark-shell .page-stock .toolbar .field { min-width: 220px; }
+.dark-shell .page-stock .toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px 16px;
+  align-items: end;
+}
+.dark-shell .page-stock .toolbar .field { min-width: 0; }
 /* the "View history" window holds a wide table */
 .dark-shell .dark-modal:has(.dark-table-wrap) { width: min(100%, 1040px); }
 .dark-shell .dark-modal .dark-table-wrap { box-shadow: none; }

@@ -88,6 +88,10 @@ exports.adjust = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Please enter the name of the person performing this adjustment');
   }
 
+  if (b.action === 'IN' && !String(b.note || '').trim()) {
+    throw new ApiError(400, 'Please enter the reason for the return (why is this item coming back in?)');
+  }
+
   if (found.kind === 'UNIT') {
     if (quantity !== 1) throw new ApiError(400, 'An individual QR represents exactly one physical item; quantity must be 1');
     const unit = await db.InventoryUnit.findOne({ where: { id: found.row.id, company_id: req.user.company_id } });

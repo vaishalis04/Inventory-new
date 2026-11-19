@@ -12,6 +12,7 @@ router.use(protect);
 
 router.post('/receive', validate(receiveSchema), inventory.receive);
 router.get('/stock', inventory.stock);
+router.get('/history', inventory.history);
 router.get('/movements', inventory.movements);
 router.put('/movements/:id', adminMgr, validate(movementUpdateSchema), inventory.updateMovement);
 router.delete('/movements/:id', adminMgr, inventory.removeMovement);
