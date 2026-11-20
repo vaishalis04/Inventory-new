@@ -119,7 +119,7 @@ exports.history = asyncHandler(async (req, res) => {
       [Op.or]: [
         { reference: like }, { note: like },
         { '$Item.name$': like }, { '$Item.sku$': like }, { '$Item.model$': like }, { '$Item.brand$': like },
-        { '$Box.code$': like }, { '$User.name$': like },
+        { '$Box.code$': like }, { '$User.name$': like }, { performed_by: like },
       ],
     });
   }

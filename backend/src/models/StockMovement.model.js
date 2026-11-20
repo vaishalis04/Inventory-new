@@ -20,6 +20,7 @@ StockMovement.init(
     reference: DataTypes.STRING(100),
     note: DataTypes.STRING(255),
     user_id: DataTypes.INTEGER,
+    performed_by: DataTypes.STRING(100),
   },
   {
     sequelize,

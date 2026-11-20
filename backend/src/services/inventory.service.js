@@ -135,6 +135,7 @@ async function applyStockChange(p, t) {
       reference: p.reference || null,
       note: p.note || null,
       user_id: p.userId || null,
+      performed_by: p.performedBy || null,
       ...(p.movementAt ? { createdAt: p.movementAt } : {}),
     },
     { transaction: t }
@@ -310,6 +311,7 @@ async function adjustBoxTx(p, t) {
       note: p.note,
       reference: p.reference,
       userId: p.userId,
+      performedBy: p.performedBy,
       movementAt: p.movementAt,
     },
     t
@@ -345,6 +347,7 @@ exports.adjustItem = (p) =>
     const {
       companyId,
       userId,
+      performedBy,
       item,
       warehouseId,
       action,
@@ -392,6 +395,7 @@ exports.adjustItem = (p) =>
               quantity,
               note,
               reference,
+              performedBy,
               movementAt,
             },
             t
@@ -414,6 +418,7 @@ exports.adjustItem = (p) =>
           note,
           reference,
           userId,
+          performedBy,
           movementAt,
         },
         t
@@ -449,6 +454,7 @@ exports.adjustItem = (p) =>
           note,
           reference,
           userId,
+          performedBy,
           movementAt,
         },
         t
@@ -510,6 +516,7 @@ exports.adjustItem = (p) =>
             quantity: take,
             note,
             reference,
+            performedBy,
             movementAt,
           },
           t

@@ -3,6 +3,7 @@ const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const printSvc = require('../services/print.service');
 const { paginate } = require('../utils/helpers');
+const { Op } = require('sequelize');
 
 exports.sheet = asyncHandler(async (req, res) => {
   const job = await db.PrintJob.findOne({ where: { id: req.params.id, company_id: req.user.company_id } });
@@ -12,8 +13,26 @@ exports.sheet = asyncHandler(async (req, res) => {
 
 exports.jobs = asyncHandler(async (req, res) => {
   const { page, limit, offset } = paginate(req.query);
+  const where = { company_id: req.user.company_id };
+  if (req.query.item_id) where.item_id = req.query.item_id;
+  if (['SHEET', 'PRINTED', 'FAILED'].includes(req.query.status)) where.status = req.query.status;
+  const include = [
+    { model: db.Item, attributes: ['id', 'name', 'sku', 'model'] },
+    { model: db.Box, attributes: ['id', 'code'] },
+  ];
+  const term = String(req.query.q || '').trim();
+  if (term) {
+    const like = { [Op.like]: `%${term}%` };
+    where[Op.or] = [
+      { error: like },
+      { '$Item.name$': like },
+      { '$Item.sku$': like },
+      { '$Item.model$': like },
+      { '$Box.code$': like },
+    ];
+  }
   const { rows, count } = await db.PrintJob.findAndCountAll({
-    where: { company_id: req.user.company_id }, limit, offset, order: [['id', 'DESC']],
+    where, include, distinct: true, limit, offset, order: [['id', 'DESC']],
   });
   res.json({ success: true, data: rows, meta: { total: count, page, limit } });
 });

@@ -102,7 +102,7 @@ exports.adjust = asyncHandler(async (req, res) => {
         const stock = await db.Stock.findOne({ where: { company_id: req.user.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id }, transaction: t, lock: t.LOCK.UPDATE });
         if (!stock || Number(stock.quantity) < 1) throw new ApiError(409, 'No stock available for this unit');
         stock.quantity = Number(stock.quantity) - 1; await stock.save({ transaction: t });
-        await db.StockMovement.create({ company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id, box_id: unit.box_id, type: 'OUT', source: 'SCAN', change: -1, quantity: 1, balance_after: stock.quantity, reference: unit.code, note: b.note || null, user_id: req.user.id, ...(movementAt ? { createdAt: movementAt } : {}) }, { transaction: t });
+        await db.StockMovement.create({ company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id, box_id: unit.box_id, type: 'OUT', source: 'SCAN', change: -1, quantity: 1, balance_after: stock.quantity, reference: unit.code, note: b.note || null, user_id: req.user.id, performed_by: performedBy, ...(movementAt ? { createdAt: movementAt } : {}) }, { transaction: t });
         unit.status = 'ISSUED'; await unit.save({ transaction: t });
         if (unit.box_id) { const box = await db.Box.findByPk(unit.box_id, { transaction: t, lock: t.LOCK.UPDATE }); box.quantity = Math.max(0, Number(box.quantity) - 1); box.status = box.quantity === 0 ? 'EMPTY' : 'ACTIVE'; await box.save({ transaction: t }); }
       });
@@ -112,7 +112,7 @@ exports.adjust = asyncHandler(async (req, res) => {
         const stock = await db.Stock.findOne({ where: { company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id }, transaction: t, lock: t.LOCK.UPDATE });
         if (!stock) throw new ApiError(409, 'Warehouse stock record not found');
         stock.quantity = Number(stock.quantity) + 1; await stock.save({ transaction: t });
-        await db.StockMovement.create({ company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id, box_id: unit.box_id, type: 'IN', source: 'SCAN', change: 1, quantity: 1, balance_after: stock.quantity, reference: unit.code, note: b.note || null, user_id: req.user.id, ...(movementAt ? { createdAt: movementAt } : {}) }, { transaction: t });
+        await db.StockMovement.create({ company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id, box_id: unit.box_id, type: 'IN', source: 'SCAN', change: 1, quantity: 1, balance_after: stock.quantity, reference: unit.code, note: b.note || null, user_id: req.user.id, performed_by: performedBy, ...(movementAt ? { createdAt: movementAt } : {}) }, { transaction: t });
         unit.status = 'AVAILABLE'; await unit.save({ transaction: t });
         if (unit.box_id) { const box = await db.Box.findByPk(unit.box_id, { transaction: t, lock: t.LOCK.UPDATE }); box.quantity = Number(box.quantity) + 1; box.status = 'ACTIVE'; await box.save({ transaction: t }); }
       });
