@@ -20,7 +20,7 @@ StockMovement.init(
     reference: DataTypes.STRING(100),
     note: DataTypes.STRING(255),
     user_id: DataTypes.INTEGER,
-    performed_by: DataTypes.STRING(100),
+    performed_by: DataTypes.STRING(100), // name entered at scan time
   },
   {
     sequelize,

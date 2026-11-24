@@ -185,4 +185,3 @@ exports.adjust = asyncHandler(async (req, res) => {
     data: await itemView(found.row, req.user.company_id),
   });
 });
-

@@ -373,8 +373,8 @@ export function MovementsPage() {
       {loading ? <Loading /> : <AutoTable
         rows={extractList(data)}
         actions={actions || undefined}
-        hide={["item_id", "warehouse_id", "user_id", "box_id", "Box"]}
-        order={["Warehouse", "Item"]}
+        hide={["item_id", "warehouse_id", "user_id", "box_id", "Box", "Warehouse", "User", "box_balance_after"]}
+        order={["Item"]}
       />}
       <Pager page={page} limit={limit} total={data?.meta?.total ?? extractList(data).length} onPage={setPage} onLimit={(l) => { setLimit(l); setPage(1); }} loading={loading} />
 

@@ -1,4 +1,3 @@
-
 const { Op, QueryTypes } = require('sequelize');
 const db = require('../models');
 const ApiError = require('../utils/ApiError');
@@ -347,7 +346,6 @@ exports.adjustItem = (p) =>
     const {
       companyId,
       userId,
-      performedBy,
       item,
       warehouseId,
       action,
@@ -355,6 +353,7 @@ exports.adjustItem = (p) =>
       autoBox,
       note,
       reference,
+      performedBy,
       movementAt,
     } = p;
 

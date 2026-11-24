@@ -96,17 +96,14 @@ export default function HistoryPage() {
         </button>
       ),
     },
-    { key: "warehouse", label: "Warehouse", render: (m) => m.Warehouse?.name || "—" },
     { key: "change", label: "In / Out", render: (m) => <b className={Number(m.change) < 0 ? "hist-neg" : "hist-pos"}>{Number(m.change) > 0 ? `+${m.change}` : m.change}</b> },
     { key: "balance", label: "Balance after", render: (m) => formatValue(m.balance_after, "balance_after") },
     { key: "ref", label: "Serial / reference", render: (m) => m.reference || "—" },
-    { key: "source", label: "Source", render: (m) => formatValue(m.source, "source") },
     {
       key: "remarks",
       label: "Remarks (why)",
       render: (m) => (m.note ? <span className={`hist-remark${m.event === "REIN" ? " rein" : ""}`}>{m.note}</span> : <span className="muted">—</span>),
     },
-    { key: "by", label: "Performed by", render: (m) => m.performed_by || m.User?.name || "—" },
   ];
 
   return (
