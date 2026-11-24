@@ -11,6 +11,7 @@ import { AutoTable } from "../components/DataTable";
 import FormField from "../components/FormField";
 import Modal from "../components/Modal";
 import { ErrorMessage, Loading } from "../components/LoadingState";
+import { useToast } from "../context/ToastContext";
 
 const EMPTY = { name: "", email: "", password: "", role: "staff", is_active: "true" };
 const ROLE_OPTIONS = ["admin", "manager", "staff"].map((r) => ({ value: r, label: r }));
@@ -31,6 +32,7 @@ export default function UsersPage() {
   const [formError, setFormError] = useState("");
   const [pageError, setPageError] = useState("");
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   const isEdit = Boolean(editing?.id);
@@ -70,6 +72,7 @@ export default function UsersPage() {
       } else {
         await createUser({ name: form.name, email: form.email, password: form.password, role: form.role });
       }
+      toast.success(isEdit ? "User updated." : "User created.");
       setEditing(null);
       setForm(EMPTY);
       loadLookups(true);
@@ -89,6 +92,7 @@ export default function UsersPage() {
     setPageError("");
     try {
       await deleteUser(row.id);
+      toast.success("User deleted.");
       loadLookups(true);
       reload();
     } catch (err) {

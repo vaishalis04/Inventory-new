@@ -1,0 +1,51 @@
+/* Mobile / WebView hardening. Layout and look are unchanged. */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Stop accidental sideways scrolling (clip does not break sticky headers) */
+body {
+  overflow-x: clip;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Use the real visible height on phones (address/navigation bars) */
+.shell,
+.login,
+.dark-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Faster taps, no double-tap zoom delay on controls */
+button,
+a,
+select,
+input,
+label {
+  touch-action: manipulation;
+}
+
+@media (max-width: 600px) {
+  /* Tables stay inside their own horizontal scroll area */
+  .table-wrap,
+  .dark-table-wrap {
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  /* Images / QR codes never push the page wider than the screen */
+  img,
+  canvas,
+  video,
+  svg {
+    max-width: 100%;
+  }
+
+  /* Camera view fits the screen */
+  video {
+    height: auto;
+  }
+}

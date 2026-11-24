@@ -15,6 +15,7 @@ import { pageSlice } from "../utils/paging";
 import FormField from "../components/FormField";
 import Modal from "../components/Modal";
 import { ErrorMessage, Loading } from "../components/LoadingState";
+import { useToast } from "../context/ToastContext";
 
 /**
  * Generic list + create (+ optional edit / deactivate) page.
@@ -29,6 +30,7 @@ function MasterPage({ title, list, create, update, remove, fields, removeNote })
   const [form, setForm] = useState({});
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   const openForm = (row = {}) => {
     setFormError("");
@@ -60,6 +62,7 @@ function MasterPage({ title, list, create, update, remove, fields, removeNote })
     try {
       if (editing.id) await update(editing.id, payload);
       else await create(payload);
+      toast.success(editing.id ? "Changes saved." : "Created successfully.");
       setEditing(null);
       loadLookups(true);
       reload();
@@ -72,7 +75,7 @@ function MasterPage({ title, list, create, update, remove, fields, removeNote })
 
   async function handleRemove(row) {
     if (!window.confirm(removeNote ? `Delete "${row.name}"?\n\n${removeNote}` : `Delete "${row.name}"? This cannot be undone.`)) return;
-    try { await remove(row.id); loadLookups(true); reload(); } catch (err) { alert(err.message); }
+    try { await remove(row.id); toast.success("Deleted successfully."); loadLookups(true); reload(); } catch (err) { toast.error(err.message, { duration: 6000 }); }
   }
 
   const actions = (update || remove) && ((row) => (
@@ -145,6 +148,7 @@ export function CategoriesPage() {
   const [fields, setFields] = useState([]);
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
   const isEdit = Boolean(editing?.id);
 
   function open(row = {}) {
@@ -171,6 +175,7 @@ export function CategoriesPage() {
     try {
       if (isEdit) await updateCategory(editing.id, payload);
       else await createCategory(payload);
+      toast.success(isEdit ? "Category updated." : "Category created.");
       setEditing(null);
       await loadLookups(true);
       reload();
@@ -183,7 +188,7 @@ export function CategoriesPage() {
 
   async function remove(row) {
     if (!window.confirm(`Delete category "${row.name}"?\n\nIts items are kept; they just become uncategorised.`)) return;
-    try { await deleteCategory(row.id); await loadLookups(true); reload(); } catch (err) { alert(err.message); }
+    try { await deleteCategory(row.id); toast.success("Category deleted."); await loadLookups(true); reload(); } catch (err) { toast.error(err.message, { duration: 6000 }); }
   }
 
   const patchField = (i, patch) => setFields((old) => old.map((x, j) => (i === j ? { ...x, ...patch } : x)));

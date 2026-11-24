@@ -5,11 +5,12 @@ import { createItem, getItem, listCategories, updateItem } from "../api/inventor
 import { extractList } from "../api/http";
 import FormField from "../components/FormField";
 import { ErrorMessage, Loading } from "../components/LoadingState";
+import { useToast } from "../context/ToastContext";
 
 const EMPTY = { category_id: "", sku: "", name: "", model: "", brand: "", description: "", unit: "pcs", min_stock: "0", custom_fields: {} };
 const safeSchema = (schema) => { if (Array.isArray(schema)) return schema; if (typeof schema === "string") { try { const v = JSON.parse(schema); return Array.isArray(v) ? v : []; } catch { return []; } } return []; };
 export default function ItemFormPage() {
-  const { id } = useParams(); const navigate = useNavigate();
+  const { id } = useParams(); const navigate = useNavigate(); const toast = useToast();
   const [form, setForm] = useState(EMPTY); const [categories, setCategories] = useState([]); const [extraFields, setExtraFields] = useState([]);
   const [loading, setLoading] = useState(Boolean(id)); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   useEffect(() => { listCategories().then(r => setCategories(extractList(r))).catch(e => setError(e.message)); if (id) getItem(id).then(r => { const it = r.data?.item ?? r.data; setForm({ ...EMPTY, ...it, category_id: it.category_id ?? "", custom_fields: it.custom_fields && typeof it.custom_fields === "object" ? it.custom_fields : {} }); }).catch(e => setError(e.message)).finally(() => setLoading(false)); }, [id]);
@@ -17,7 +18,7 @@ export default function ItemFormPage() {
   const schema = safeSchema(category?.field_schema);
   const set = key => e => setForm(old => ({ ...old, [key]: e.target.value }));
   const setCustom = (key, value) => setForm(old => ({ ...old, custom_fields: { ...(old.custom_fields || {}), [key]: value } }));
-  async function submit(e) { e.preventDefault(); setError(""); setBusy(true); try { const payload = { ...form, category_id: form.category_id ? Number(form.category_id) : null, custom_fields: form.custom_fields || {} }; if (id) await updateItem(id, payload); else await createItem(payload); await loadLookups(true); navigate("/items"); } catch (err) { setError(err.details ? `${err.message}: ${JSON.stringify(err.details)}` : err.message); } finally { setBusy(false); } }
+  async function submit(e) { e.preventDefault(); setError(""); setBusy(true); try { const payload = { ...form, category_id: form.category_id ? Number(form.category_id) : null, custom_fields: form.custom_fields || {} }; if (id) await updateItem(id, payload); else await createItem(payload); await loadLookups(true); toast.success(id ? "Item updated." : "Item created."); navigate("/items"); } catch (err) { setError(err.details ? `${err.message}: ${JSON.stringify(err.details)}` : err.message); } finally { setBusy(false); } }
   if (loading) return <Loading />;
   return <div className="page page-itemform"><h1>{id ? "Edit item" : "Create item"}</h1><p className="muted">Define the product once. Stock quantity and box quantities are entered only when receiving stock.</p><ErrorMessage error={error} /><form className="card" onSubmit={submit}><div className="grid">
     <FormField label="Category" value={form.category_id} onChange={set("category_id")} options={categories.map(c => ({ value: c.id, label: c.name }))} />

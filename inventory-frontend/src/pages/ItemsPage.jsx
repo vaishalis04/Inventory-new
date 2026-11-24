@@ -9,6 +9,7 @@ import Pager from "../components/Pager";
 import RefreshButton from "../components/RefreshButton";
 import { DataTable } from "../components/DataTable";
 import { ErrorMessage, Loading } from "../components/LoadingState";
+import { useToast } from "../context/ToastContext";
 import Modal from "../components/Modal";
 import QrImage from "../components/QrImage";
 
@@ -37,6 +38,7 @@ export default function ItemsPage() {
   const items = extractList(data);
 
   // Top 5 most-issued items, shown above the table (hidden while searching).
+  const toast = useToast();
   const popular = useFetch(() => listItems({ limit: 5 }), []);
   const popularItems = extractList(popular.data).filter((i) => Number(i.popularity) > 0);
   const popularIds = new Set(popularItems.map((i) => i.id));
@@ -61,6 +63,7 @@ export default function ItemsPage() {
     setDeleteError("");
     try {
       await deleteItem(item.id);
+      toast.success(`"${item.name}" deleted.`);
       await loadLookups(true);
       reload();
       popular.reload();
