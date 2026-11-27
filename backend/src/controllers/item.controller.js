@@ -73,6 +73,7 @@ exports.create = asyncHandler(async (req, res) => {
 
 exports.update = asyncHandler(async (req, res) => {
   const item = await load(req);
+  if (!req.body.sku) delete req.body.sku; // empty SKU = keep the current one
   await item.update(req.body);
   res.json({ success: true, data: item });
 });

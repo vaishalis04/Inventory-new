@@ -1,4 +1,3 @@
-
 import { HIDDEN_KEY, formatValue, isScalar, pretty } from "../utils/format";
 import { showField, useLookups } from "../utils/lookup";
 
@@ -56,7 +55,7 @@ export function DataTable({
  * Automatically builds columns from scalar fields and nested name/code fields.
  * Hidden fields and unresolved IDs are omitted.
  */
-export function AutoTable({ rows, actions, hide = [], order = [], ...rest }) {
+export function AutoTable({ rows, actions, hide = [], order = [], labels = {}, ...rest }) {
   useLookups();
 
   const sample = rows?.slice(0, 20) ?? [];
@@ -104,7 +103,7 @@ export function AutoTable({ rows, actions, hide = [], order = [], ...rest }) {
 
   const columns = ordered.map((key) => ({
     key,
-    label: pretty(key),
+    label: labels[key] ?? pretty(key),
     render: (row) => {
       const value = row[key];
 

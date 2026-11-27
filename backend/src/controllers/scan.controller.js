@@ -6,6 +6,18 @@ const qr = require('../services/qr.service');
 
 const itemInclude = [{ model: db.Category, attributes: ['id', 'name'] }];
 
+// When a single piece last went OUT and last came back IN (re-in), from its scan movements.
+async function unitDates(unit) {
+  const base = { company_id: unit.company_id, item_id: unit.item_id, reference: unit.code, source: 'SCAN' };
+  const pick = (type) => db.StockMovement.findOne({
+    where: { ...base, type }, order: [['adjustment_date', 'DESC'], ['id', 'DESC']],
+    attributes: ['adjustment_date', 'createdAt', 'performed_by'],
+  });
+  const [out, back] = await Promise.all([pick('OUT'), pick('IN')]);
+  const when = (m) => (m ? m.adjustment_date || m.createdAt : null);
+  return { out_date: when(out), out_by: out?.performed_by || null, reentry_date: when(back), reentry_by: back?.performed_by || null };
+}
+
 async function boxView(box, companyId) {
   const [item, warehouse, supplier, history] = await Promise.all([
     db.Item.findOne({ where: { id: box.item_id }, include: itemInclude }),
@@ -65,7 +77,7 @@ exports.scan = asyncHandler(async (req, res) => {
     data = await boxView(found.row, req.user.company_id);
     data.units = await db.InventoryUnit.findAll({ where: { box_id: found.row.id, company_id: req.user.company_id }, attributes: ['id','code','status','received_at'], order: [['id','ASC']] });
   } else if (found.kind === 'UNIT') {
-    data = { type: 'UNIT', unit: found.row, item: found.row.Item, box: found.row.Box, warehouse: found.row.Warehouse };
+    data = { type: 'UNIT', unit: found.row, item: found.row.Item, box: found.row.Box, warehouse: found.row.Warehouse, unit_dates: await unitDates(found.row) };
   } else data = await itemView(found.row, req.user.company_id);
   res.json({ success: true, data });
 });
@@ -102,7 +114,7 @@ exports.adjust = asyncHandler(async (req, res) => {
         const stock = await db.Stock.findOne({ where: { company_id: req.user.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id }, transaction: t, lock: t.LOCK.UPDATE });
         if (!stock || Number(stock.quantity) < 1) throw new ApiError(409, 'No stock available for this unit');
         stock.quantity = Number(stock.quantity) - 1; await stock.save({ transaction: t });
-        await db.StockMovement.create({ company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id, box_id: unit.box_id, type: 'OUT', source: 'SCAN', change: -1, quantity: 1, balance_after: stock.quantity, reference: unit.code, note: b.note || null, user_id: req.user.id, performed_by: performedBy, ...(movementAt ? { createdAt: movementAt } : {}) }, { transaction: t });
+        await db.StockMovement.create({ company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id, box_id: unit.box_id, type: 'OUT', source: 'SCAN', change: -1, quantity: 1, balance_after: stock.quantity, reference: unit.code, note: b.note || null, user_id: req.user.id, performed_by: performedBy, adjustment_date: movementAt || new Date() }, { transaction: t });
         unit.status = 'ISSUED'; await unit.save({ transaction: t });
         if (unit.box_id) { const box = await db.Box.findByPk(unit.box_id, { transaction: t, lock: t.LOCK.UPDATE }); box.quantity = Math.max(0, Number(box.quantity) - 1); box.status = box.quantity === 0 ? 'EMPTY' : 'ACTIVE'; await box.save({ transaction: t }); }
       });
@@ -112,13 +124,13 @@ exports.adjust = asyncHandler(async (req, res) => {
         const stock = await db.Stock.findOne({ where: { company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id }, transaction: t, lock: t.LOCK.UPDATE });
         if (!stock) throw new ApiError(409, 'Warehouse stock record not found');
         stock.quantity = Number(stock.quantity) + 1; await stock.save({ transaction: t });
-        await db.StockMovement.create({ company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id, box_id: unit.box_id, type: 'IN', source: 'SCAN', change: 1, quantity: 1, balance_after: stock.quantity, reference: unit.code, note: b.note || null, user_id: req.user.id, performed_by: performedBy, ...(movementAt ? { createdAt: movementAt } : {}) }, { transaction: t });
+        await db.StockMovement.create({ company_id: unit.company_id, item_id: unit.item_id, warehouse_id: unit.warehouse_id, box_id: unit.box_id, type: 'IN', source: 'SCAN', change: 1, quantity: 1, balance_after: stock.quantity, reference: unit.code, note: b.note || null, user_id: req.user.id, performed_by: performedBy, adjustment_date: movementAt || new Date() }, { transaction: t });
         unit.status = 'AVAILABLE'; await unit.save({ transaction: t });
         if (unit.box_id) { const box = await db.Box.findByPk(unit.box_id, { transaction: t, lock: t.LOCK.UPDATE }); box.quantity = Number(box.quantity) + 1; box.status = 'ACTIVE'; await box.save({ transaction: t }); }
       });
     } else throw new ApiError(400, 'Action must be IN or OUT for an individual item');
     const fresh = await db.InventoryUnit.findByPk(unit.id, { include: [{ model: db.Item }, { model: db.Box }, { model: db.Warehouse }] });
-    return res.json({ success: true, message: 'Individual item updated', data: { type: 'UNIT', unit: fresh, item: fresh.Item, box: fresh.Box, warehouse: fresh.Warehouse } });
+    return res.json({ success: true, message: 'Individual item updated', data: { type: 'UNIT', unit: fresh, item: fresh.Item, box: fresh.Box, warehouse: fresh.Warehouse, unit_dates: await unitDates(fresh) } });
   }
 
   const base = {

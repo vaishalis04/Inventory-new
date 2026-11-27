@@ -1,5 +1,4 @@
-
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   adjustScannedCode,
   listWarehouses,
@@ -26,6 +25,28 @@ const dateAtCurrentLocalTime = (date) => {
   return new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds()).toISOString();
 };
 
+const STATUS_STYLES = {
+  AVAILABLE: { text: "✔ AVAILABLE", bg: "#dcfce7", color: "#166534", border: "#4ade80" },
+  ISSUED: { text: "⛔ ALREADY ISSUED", bg: "#fee2e2", color: "#b91c1c", border: "#f87171" },
+  DAMAGED: { text: "⚠ DAMAGED", bg: "#ffedd5", color: "#c2410c", border: "#fb923c" },
+  LOST: { text: "⛔ LOST", bg: "#fee2e2", color: "#b91c1c", border: "#f87171" },
+};
+/** Big, colour-coded status: green = available, red = already out. */
+function UnitStatusBadge({ status, large = false }) {
+  const key = String(status || "").toUpperCase();
+  const s = STATUS_STYLES[key] || { text: key || "—", bg: "#e5e7eb", color: "#374151", border: "#9ca3af" };
+  return (
+    <span style={{ display: "inline-block", padding: large ? "8px 18px" : "4px 12px", borderRadius: 999, fontWeight: 800, letterSpacing: ".04em", fontSize: large ? 16 : 13, background: s.bg, color: s.color, border: `2px solid ${s.border}` }}>
+      {s.text}
+    </span>
+  );
+}
+const localDay = (value) => {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 /** One block with only the relevant facts (no repeated item / unit / warehouse sections). */
 function ScanDetails({ result }) {
   useLookups();
@@ -37,11 +58,14 @@ function ScanDetails({ result }) {
   if (result.type === "UNIT") {
     const unit = result.unit || {};
     add("Barcode / serial", unit.code);
-    add("Status", has(unit.status) ? formatValue(unit.status, "status") : null);
+    add("Status", has(unit.status) ? <UnitStatusBadge status={unit.status} /> : null);
     add("Item", item.name); add("SKU", item.sku); add("Brand", item.brand); add("Model", item.model); add("Category", category);
     add("Warehouse", result.warehouse?.name || resolveName("warehouse_id", unit.warehouse_id));
     add("Box", result.box?.code);
     add("Received at", has(unit.received_at) ? formatValue(unit.received_at, "received_at") : null);
+    const dates = result.unit_dates || {};
+    add("Out date", has(dates.out_date) ? `${formatValue(dates.out_date, "received_at")}${dates.out_by ? ` · by ${dates.out_by}` : ""}` : null);
+    add("Re-in date", has(dates.reentry_date) ? `${formatValue(dates.reentry_date, "received_at")}${dates.reentry_by ? ` · by ${dates.reentry_by}` : ""}` : null);
     add("Note", unit.note);
   } else if (result.type === "BOX") {
     const box = result.box || result;
@@ -194,6 +218,11 @@ export default function ScanPage() {
       return;
     }
 
+    if (isUnit && adj.action === "IN" && adj.movement_date && unitDates.out_date && adj.movement_date < localDay(unitDates.out_date)) {
+      setError(`The re-in date cannot be before the out date (${localDay(unitDates.out_date)}).`);
+      return;
+    }
+
     const payload = {
       action: adj.action,
       quantity: isUnit ? 1 : quantity,
@@ -222,7 +251,7 @@ export default function ScanPage() {
       await adjustScannedCode(scanned, payload);
 
       setNotice(
-        `${adj.action} of ${quantity} recorded successfully by ${performedBy}.`
+        `${actionLabel} of ${quantity} recorded successfully by ${performedBy}.`
       );
 
       setAdj((previous) => ({
@@ -257,6 +286,33 @@ export default function ScanPage() {
   const isBox = result?.type === "BOX";
   const isItem = result?.type === "ITEM";
   const isUnit = result?.type === "UNIT";
+
+  // Only offer the actions that can actually happen:
+  //  - a single piece that is out (issued/damaged/lost) can only come back IN; one that is available can only go OUT
+  //  - a box or item with nothing left in stock cannot go OUT
+  const unitStatus = isUnit ? String(result.unit?.status || "").toUpperCase() : "";
+  const qtyLeft = isBox
+    ? Number(result.box?.quantity ?? result.current_quantity)
+    : isItem ? Number(result.total_quantity) : NaN;
+  const canOut = isUnit ? unitStatus === "AVAILABLE" : !(qtyLeft <= 0);
+  const canIn = isUnit ? unitStatus !== "AVAILABLE" : true;
+  const actionOptions = [
+    ...(canOut ? [{ value: "OUT", label: "OUT (remove)" }] : []),
+    ...(canIn ? [{ value: "IN", label: isUnit ? "RE-IN (return)" : "IN (add)" }] : []),
+  ];
+  const unitDates = isUnit ? result.unit_dates || {} : {};
+  const dateLabel = adj.action === "OUT" ? "Out date" : isUnit ? "Re-in date" : "In date";
+  const actionLabel = adj.action === "IN" && isUnit ? "RE-IN" : adj.action;
+  const allowedKey = actionOptions.map((o) => o.value).join(",");
+
+  // Keep the selected action valid whenever the scanned code (or its status) changes.
+  useEffect(() => {
+    if (!result) return;
+    const allowed = allowedKey.split(",").filter(Boolean);
+    if (allowed.length && !allowed.includes(adj.action)) {
+      setAdj((previous) => ({ ...previous, action: allowed[0] }));
+    }
+  }, [result, allowedKey, adj.action]);
 
   const warehouseOptions = extractList(
     warehouses.data
@@ -348,6 +404,17 @@ export default function ScanPage() {
           >
             <h2>Adjust stock</h2>
 
+            {isUnit && (
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", margin: "4px 0 16px", padding: "12px 16px", borderRadius: 12, background: unitStatus === "AVAILABLE" ? "#f0fdf4" : "#fef2f2", border: `2px solid ${unitStatus === "AVAILABLE" ? "#4ade80" : "#f87171"}` }}>
+                <UnitStatusBadge status={unitStatus} large />
+                <span style={{ fontWeight: 600 }}>
+                  {unitStatus === "AVAILABLE"
+                    ? "In stock — it can be taken OUT."
+                    : `This item is already out${unitDates.out_date ? ` (out on ${formatValue(unitDates.out_date, "received_at")})` : ""} — only RE-IN is possible.`}
+                </span>
+              </div>
+            )}
+
             <div className="grid">
               <FormField
                 label="Action"
@@ -358,16 +425,7 @@ export default function ScanPage() {
                     action: e.target.value,
                   })
                 }
-                options={[
-                  {
-                    value: "OUT",
-                    label: "OUT (remove)",
-                  },
-                  {
-                    value: "IN",
-                    label: "IN (add)",
-                  },
-                ]}
+                options={actionOptions}
               />
 
               {!isUnit && <FormField
@@ -386,7 +444,7 @@ export default function ScanPage() {
               />}
 
               <FormField
-                label="Adjustment date"
+                label={dateLabel}
                 type="date"
                 value={adj.movement_date}
                 onChange={(e) => setAdj({ ...adj, movement_date: e.target.value })}
@@ -436,7 +494,7 @@ export default function ScanPage() {
             />
 
             <FormField
-              label={adj.action === "IN" ? "Reason for return / re-in *" : "Note"}
+              label={adj.action === "IN" ? (isUnit ? "Reason for re-in *" : "Reason for return / re-in *") : "Note"}
               value={adj.note}
               onChange={(e) =>
                 setAdj({
@@ -455,7 +513,7 @@ export default function ScanPage() {
               >
                 {busy
                   ? "Saving..."
-                  : `Confirm ${adj.action}`}
+                  : `Confirm ${actionLabel}`}
               </button>
 
               <button

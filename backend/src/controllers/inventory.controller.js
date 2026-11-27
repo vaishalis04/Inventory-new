@@ -69,9 +69,9 @@ exports.movements = asyncHandler(async (req, res) => {
     ];
   }
   if (q.from || q.to) {
-    where.createdAt = {};
-    if (q.from) where.createdAt[Op.gte] = new Date(q.from);
-    if (q.to) where.createdAt[Op.lte] = new Date(q.to);
+    where.adjustment_date = {};
+    if (q.from) where.adjustment_date[Op.gte] = new Date(q.from);
+    if (q.to) where.adjustment_date[Op.lte] = new Date(q.to);
   }
   const { rows, count } = await db.StockMovement.findAndCountAll({
     where, limit, offset, order: [['id', 'DESC']],
@@ -119,15 +119,15 @@ exports.history = asyncHandler(async (req, res) => {
       [Op.or]: [
         { reference: like }, { note: like },
         { '$Item.name$': like }, { '$Item.sku$': like }, { '$Item.model$': like }, { '$Item.brand$': like },
-        { '$Box.code$': like }, { '$User.name$': like }, { performed_by: like },
+        { '$Box.code$': like }, { '$User.name$': like },
       ],
     });
   }
   if (and.length) where[Op.and] = and;
   if (q.from || q.to) {
-    where.createdAt = {};
-    if (q.from) where.createdAt[Op.gte] = new Date(q.from);
-    if (q.to) where.createdAt[Op.lte] = new Date(q.to);
+    where.adjustment_date = {};
+    if (q.from) where.adjustment_date[Op.gte] = new Date(q.from);
+    if (q.to) where.adjustment_date[Op.lte] = new Date(q.to);
   }
   const include = [
     { model: db.Item, attributes: ['id', 'name', 'sku', 'model', 'brand'] },
@@ -136,7 +136,7 @@ exports.history = asyncHandler(async (req, res) => {
     { model: db.User, attributes: ['id', 'name'] },
   ];
   const { rows, count } = await db.StockMovement.findAndCountAll({
-    where, limit, offset, include, order: [['createdAt', 'DESC'], ['id', 'DESC']],
+    where, limit, offset, include, order: [['adjustment_date', 'DESC'], ['id', 'DESC']],
   });
 
   // totals for the WHOLE filtered history (not just this page)

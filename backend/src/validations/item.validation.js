@@ -3,7 +3,7 @@ const { id, text } = require('./common.validation');
 
 const item = Joi.object({
   category_id: id.allow(null),
-  sku: Joi.string().max(60),
+  sku: Joi.string().max(60).allow('', null), // optional: a code is generated when left empty
   name: Joi.string().max(200).required(),
   model: text(100),
   brand: text(100),

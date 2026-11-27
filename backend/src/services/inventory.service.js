@@ -135,7 +135,7 @@ async function applyStockChange(p, t) {
       note: p.note || null,
       user_id: p.userId || null,
       performed_by: p.performedBy || null,
-      ...(p.movementAt ? { createdAt: p.movementAt } : {}),
+      adjustment_date: p.movementAt || new Date(),
     },
     { transaction: t }
   );

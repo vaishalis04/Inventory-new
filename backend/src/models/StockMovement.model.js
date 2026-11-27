@@ -21,6 +21,7 @@ StockMovement.init(
     note: DataTypes.STRING(255),
     user_id: DataTypes.INTEGER,
     performed_by: DataTypes.STRING(100), // name entered at scan time
+    adjustment_date: DataTypes.DATE, // day the movement actually happened (user-chosen); createdAt = when it was recorded
   },
   {
     sequelize,

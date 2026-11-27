@@ -1,9 +1,9 @@
+const { Op } = require('sequelize');
 const db = require('../models');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const printSvc = require('../services/print.service');
 const { paginate } = require('../utils/helpers');
-const { Op } = require('sequelize');
 
 exports.sheet = asyncHandler(async (req, res) => {
   const job = await db.PrintJob.findOne({ where: { id: req.params.id, company_id: req.user.company_id } });
@@ -13,26 +13,29 @@ exports.sheet = asyncHandler(async (req, res) => {
 
 exports.jobs = asyncHandler(async (req, res) => {
   const { page, limit, offset } = paginate(req.query);
-  const where = { company_id: req.user.company_id };
-  if (req.query.item_id) where.item_id = req.query.item_id;
-  if (['SHEET', 'PRINTED', 'FAILED'].includes(req.query.status)) where.status = req.query.status;
-  const include = [
-    { model: db.Item, attributes: ['id', 'name', 'sku', 'model'] },
-    { model: db.Box, attributes: ['id', 'code'] },
-  ];
-  const term = String(req.query.q || '').trim();
-  if (term) {
-    const like = { [Op.like]: `%${term}%` };
-    where[Op.or] = [
-      { error: like },
-      { '$Item.name$': like },
-      { '$Item.sku$': like },
-      { '$Item.model$': like },
-      { '$Box.code$': like },
-    ];
+  const q = req.query;
+  const companyId = req.user.company_id;
+  const where = { company_id: companyId };
+  if (q.status) where.status = q.status;
+  if (q.item_id) where.item_id = q.item_id;
+  if (q.from || q.to) {
+    where.createdAt = {};
+    if (q.from) where.createdAt[Op.gte] = new Date(q.from);
+    if (q.to) where.createdAt[Op.lte] = new Date(q.to);
+  }
+  // Free-text search: item name / SKU / model / brand, the creator's name, or the job number.
+  const search = String(q.q || '').trim();
+  if (search) {
+    const like = { [Op.like]: `%${search}%` };
+    const users = await db.User.findAll({ where: { company_id: companyId, name: like }, attributes: ['id'] });
+    const or = [{ '$Item.name$': like }, { '$Item.sku$': like }, { '$Item.model$': like }, { '$Item.brand$': like }];
+    if (users.length) or.push({ created_by: { [Op.in]: users.map((u) => u.id) } });
+    if (/^\d+$/.test(search)) or.push({ id: Number(search) });
+    where[Op.and] = [{ [Op.or]: or }];
   }
   const { rows, count } = await db.PrintJob.findAndCountAll({
-    where, include, distinct: true, limit, offset, order: [['id', 'DESC']],
+    where, limit, offset, order: [['id', 'DESC']],
+    include: [{ model: db.Item, attributes: ['id', 'name', 'sku', 'model', 'brand'], required: false }],
   });
   res.json({ success: true, data: rows, meta: { total: count, page, limit } });
 });

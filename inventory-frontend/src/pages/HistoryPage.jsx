@@ -80,7 +80,7 @@ export default function HistoryPage() {
   }
 
   const columns = [
-    { key: "when", label: "Date & time", render: (m) => formatValue(m.createdAt ?? m.created_at, "createdAt") },
+    { key: "when", label: "Date & time", render: (m) => formatValue(m.adjustment_date ?? m.createdAt ?? m.created_at, "createdAt") },
     {
       key: "event",
       label: "Event",
